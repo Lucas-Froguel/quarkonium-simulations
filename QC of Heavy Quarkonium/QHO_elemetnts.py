@@ -3,16 +3,14 @@ import matplotlib.pyplot as plt
 import json
 import scipy.integrate as integrate
 import scipy.special as sp
+from scipy.constants import hbar
 import mpmath
-from qiskit.opflow import X, Y, Z, I
 
-omega = 0.5
-mass = 1.0
-hbar = 1.0
-xZP = hbar / (2*omega*mass)
-kappa = 0.4
-sigma = 200
-mu = 562.9
+omega = 562.9  # MeV
+#  mass = 1.0
+kappa = 0.4063  # MeV
+sigma = 441.6 ** 2  # MeV
+mu = 637.5 # MeV
 b = 1 / np.sqrt(mu * omega)
 
 def kdelta(n, m):
