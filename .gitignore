@@ -1,1 +1,14 @@
-venv
+output/
+.venv/
+venv/
+__pycache__/
+*.egg-info/
+*.pyc
+.python-version
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz

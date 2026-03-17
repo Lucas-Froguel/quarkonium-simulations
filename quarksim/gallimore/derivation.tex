@@ -1,0 +1,509 @@
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{physics}
+\usepackage{hyperref}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{enumitem}
+\usepackage{listings}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
+
+\lstset{
+  language=Python,
+  basicstyle=\ttfamily\small,
+  keywordstyle=\color{blue},
+  commentstyle=\color{gray},
+  stringstyle=\color{red!70!black},
+  showstringspaces=false,
+  frame=single,
+  breaklines=true,
+}
+
+\title{Derivation and Implementation Notes\\
+\large Gallimore \& Liao --- Quantum Computing for Heavy Quarkonium Spectroscopy\\
+\normalsize arXiv:2202.03333v2}
+
+\author{Companion document for the \texttt{quarksim} codebase}
+\date{}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+\newpage
+
+%=============================================================================
+\section{The Physics Problem}
+%=============================================================================
+
+\subsection{Charmonium and the Cornell Potential}
+
+The system under study is a charm quark ($c$) and anti-charm quark ($\bar{c}$) bound together by the strong force. At the energy scales of charmonium ($\sim 1$--$3$~GeV), a non-relativistic potential model provides a good description.
+
+The interaction is the \textbf{Cornell potential} (Eq.~1 of the paper):
+\begin{equation}
+  V(r) = -\frac{\kappa}{r} + \sigma r
+  \label{eq:cornell}
+\end{equation}
+where:
+\begin{itemize}[nosep]
+  \item $-\kappa/r$: color Coulomb attraction from one-gluon exchange (short-range),
+  \item $\sigma r$: linear confinement from the QCD string tension (long-range).
+\end{itemize}
+
+\subsection{Parameters}
+
+The numerical values used in the paper (Section~II.A):
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Symbol & Value & Description \\
+\midrule
+$\kappa$ & 0.4063 & Dimensionless color Coulomb coupling \\
+$\sqrt{\sigma}$ & 441.6~MeV & String tension \\
+$\mu$ & 637.5~MeV & Reduced mass ($\mu = m_c/2$, $m_c \approx 1275$~MeV) \\
+$\omega$ & 562.9~MeV & QHO oscillator frequency \\
+\bottomrule
+\end{tabular}
+\end{center}
+Natural units ($\hbar = c = 1$) are used throughout.
+
+\subsection{The Hamiltonian}
+
+In the center-of-mass frame, the Hamiltonian for relative motion is (Eq.~2):
+\begin{equation}
+  H = T + V = -\frac{\nabla^2}{2\mu} + V(r)
+  \label{eq:hamiltonian}
+\end{equation}
+The goal is to find the eigenvalues (energy levels) and eigenstates of $H$ on a quantum computer.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{hamiltonian.py}, constants in \texttt{CHARMONIUM\_PARAMS}.
+
+
+%=============================================================================
+\section{Basis Expansion: QHO States}
+%=============================================================================
+
+\subsection{Choice of Basis}
+
+The Hamiltonian is expanded in \textbf{spherical quantum harmonic oscillator (QHO) $s$-wave states} $\{\ket{n}\}_{n=0}^{N-1}$, with wavefunctions (Eq.~4):
+\begin{equation}
+  \braket{r|n} = (-1)^n \sqrt{\frac{2\, n!}{b^3\, \Gamma(n+3/2)}}
+    \exp\!\left(-\frac{r^2}{2b^2}\right)
+    L_n^{1/2}\!\left(\frac{r^2}{b^2}\right)
+  \label{eq:qho_wf}
+\end{equation}
+where:
+\begin{itemize}[nosep]
+  \item $b \equiv (\mu\omega)^{-1/2}$ is the oscillator length,
+  \item $L_n^{1/2}$ are generalized Laguerre polynomials.
+\end{itemize}
+
+\textbf{Why QHO states?} They form a complete, orthogonal basis. The Gaussian envelope naturally matches bound-state wavefunctions. In the final result, the ground state is $\sim 98.6\%$ in the $\ket{0}$ orbital, confirming an excellent choice of basis.
+
+\subsection{Truncation to $N=3$}
+
+The Hilbert space is truncated to $N=3$ states: $\ket{0}$, $\ket{1}$, $\ket{2}$. This yields a $3\times 3$ Hamiltonian matrix encodable in 3 qubits.
+
+By the \textbf{Hylleraas--Undheim--MacDonald theorem} (Appendix~A of the paper), the eigenvalues of $H_N$ are upper bounds on the true eigenvalues of the full (infinite-dimensional) $H$.
+
+
+%=============================================================================
+\section{Matrix Elements}
+%=============================================================================
+
+\subsection{Kinetic Energy (Eq.~5)}
+
+The kinetic energy operator is \textbf{tridiagonal} in the QHO basis---it only couples adjacent states $n$ and $n\pm 1$:
+\begin{equation}
+  \mel{m}{T}{n} = \frac{\omega}{2}\left[
+    \left(2n + \frac{3}{2}\right)\delta_{mn}
+    - \sqrt{n\!\left(n+\frac{1}{2}\right)}\;\delta_{m,\,n-1}
+    - \sqrt{(n+1)\!\left(n+\frac{3}{2}\right)}\;\delta_{m,\,n+1}
+  \right]
+  \label{eq:kinetic}
+\end{equation}
+
+For $N=3$, the kinetic energy matrix is:
+\begin{equation}
+  T = \frac{\omega}{2}
+  \begin{pmatrix}
+    3/2 & -\sqrt{3/2} & 0 \\
+    -\sqrt{3/2} & 7/2 & -\sqrt{5} \\
+    0 & -\sqrt{5} & 11/2
+  \end{pmatrix}
+\end{equation}
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{hamiltonian.kinetic\_element(m, n, omega)}
+
+\subsection{Potential Energy (Eqs.~6--7)}
+
+The matrix elements of $r$ and $r^{-1}$ are evaluated using hypergeometric functions.
+
+\textbf{Coulomb term} $\mel{m}{r^{-1}}{n}$ (Eq.~7):
+\begin{equation}
+  \mel{m}{r^{-1}}{n} = (-1)^{m+n} \frac{4\,b^{-1}}{\pi(1+2n)}
+    \sqrt{\frac{\Gamma(m+3/2)\,\Gamma(n+3/2)}{m!\,n!}}\;
+    {}_3F_2\!\left(\tfrac{1}{2}, 1, -m;\; \tfrac{3}{2}, \tfrac{1}{2}-n;\; 1\right)
+  \label{eq:r_inv}
+\end{equation}
+
+\textbf{Linear confinement} $\mel{m}{r}{n}$ (Eq.~6):
+\begin{equation}
+  \mel{m}{r}{n} = (-1)^{m+n} \frac{4b}{\pi(1-4n^2)}
+    \sqrt{\frac{\Gamma(m+3/2)\,\Gamma(n+3/2)}{m!\,n!}}\;
+    {}_2F_1\!\left(2, -m;\; \tfrac{3}{2}-n;\; 1\right)
+  \label{eq:r_lin}
+\end{equation}
+
+The full potential matrix element is:
+\begin{equation}
+  V_{mn} \equiv \mel{m}{V}{n} = -\kappa\,\mel{m}{r^{-1}}{n} + \sigma\,\mel{m}{r}{n}
+  \label{eq:potential}
+\end{equation}
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{hamiltonian.potential\_element(m, n, b, kappa, sigma)}.
+Uses \texttt{mpmath.hyp3f2} and \texttt{mpmath.hyp2f1} for numerical evaluation.
+
+
+%=============================================================================
+\section{Jordan-Wigner Transformation}
+%=============================================================================
+
+\subsection{Second Quantization (Eq.~3)}
+
+The Hamiltonian in second-quantized form:
+\begin{equation}
+  H_N = \sum_{m,n=0}^{N-1} h_{mn}\, a_m^\dagger a_n
+  \label{eq:second_quant}
+\end{equation}
+where $h_{mn} = \mel{m}{T+V}{n}$ and $a_n^\dagger$, $a_n$ create/destroy a $c\bar{c}$ pair in orbital $\ket{n}$.
+
+The physical states (single-particle sector):
+\begin{align}
+  \ket{001} &= \text{orbital 0 occupied (QHO ground state)} \nonumber \\
+  \ket{010} &= \text{orbital 1 occupied} \nonumber \\
+  \ket{100} &= \text{orbital 2 occupied} \nonumber
+\end{align}
+
+\subsection{Jordan-Wigner Mapping (Eqs.~8--9)}
+
+The creation and annihilation operators map to qubit (Pauli) operators:
+\begin{align}
+  a_n^\dagger &= \frac{1}{2}\left(\prod_{j<n} Z_j\right)(X_n - iY_n) \label{eq:jw_create}\\
+  a_n &= \frac{1}{2}\left(\prod_{j<n} Z_j\right)(X_n + iY_n) \label{eq:jw_destroy}
+\end{align}
+
+From these, one derives:
+\begin{align}
+  a_n^\dagger a_n &= \frac{1}{2}(I - Z_n)
+    & &\text{(diagonal)} \label{eq:jw_diag}\\
+  a_m^\dagger a_n + a_n^\dagger a_m &= \frac{1}{2}(X_m X_n + Y_m Y_n)
+    & &\text{(adjacent, $|m-n|=1$)} \label{eq:jw_adj}\\
+  a_0^\dagger a_2 + a_2^\dagger a_0 &= \frac{1}{2}(X_0 Z_1 X_2 + Y_0 Z_1 Y_2)
+    & &\text{(non-adjacent, $Z$ string)} \label{eq:jw_nonadj}
+\end{align}
+
+\subsection{The 10-Term Pauli Hamiltonian (Eqs.~11--20)}
+
+Substituting the Jordan-Wigner expressions into \eqref{eq:second_quant}:
+
+\begin{align}
+  H_3^0 &= \frac{1}{2}(h_{00} + h_{11} + h_{22})\; I \otimes I \otimes I
+    \label{eq:H0}\\[4pt]
+  H_3^1 &= -\frac{h_{00}}{2}\; I \otimes I \otimes Z
+    \label{eq:H1}\\
+  H_3^2 &= -\frac{h_{11}}{2}\; I \otimes Z \otimes I
+    \label{eq:H2}\\
+  H_3^3 &= -\frac{h_{22}}{2}\; Z \otimes I \otimes I
+    \label{eq:H3}\\[4pt]
+  H_3^4 &= \frac{h_{01}}{2}\; I \otimes X \otimes X
+    \label{eq:H4}\\
+  H_3^5 &= \frac{h_{12}}{2}\; X \otimes X \otimes I
+    \label{eq:H5}\\
+  H_3^6 &= \frac{h_{01}}{2}\; I \otimes Y \otimes Y
+    \label{eq:H6}\\
+  H_3^7 &= \frac{h_{12}}{2}\; Y \otimes Y \otimes I
+    \label{eq:H7}\\[4pt]
+  H_3^8 &= \frac{h_{02}}{2}\; X \otimes Z \otimes X
+    \label{eq:H8}\\
+  H_3^9 &= \frac{h_{02}}{2}\; Y \otimes Z \otimes Y
+    \label{eq:H9}
+\end{align}
+
+where $h_{mn} = T_{mn} + V_{mn}$.
+
+\textbf{Key structural properties:}
+\begin{itemize}[nosep]
+  \item The $XX$ and $YY$ terms from the same orbital pair always share equal coefficients.
+  \item The $XZX$ and $YZY$ terms also share the same coefficient $h_{02}/2$.
+  \item The identity term is a constant energy offset.
+\end{itemize}
+
+\vspace{0.3em}
+\noindent\textbf{Qiskit convention:} In a Pauli string \texttt{'ABC'}, \texttt{A} acts on qubit~2, \texttt{B} on qubit~1, \texttt{C} on qubit~0. So $Z_0 = $ \texttt{'IIZ'}, $X_0 X_1 = $ \texttt{'IXX'}, $X_0 Z_1 X_2 = $ \texttt{'XZX'}.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{hamiltonian.build\_pauli\_hamiltonian()}. The function computes $h_{mn}$ from scratch using \texttt{kinetic\_element()} and \texttt{potential\_element()}, then constructs all 10 terms directly. The function \texttt{validate\_pauli\_hamiltonian()} verifies that the $8\times 8$ Pauli matrix matches the $3\times 3$ physical matrix in the 1-particle subspace.
+
+
+%=============================================================================
+\section{The UCC Ansatz}
+%=============================================================================
+
+\subsection{Unitary Coupled Cluster Operator (Eq.~22)}
+
+The variational ansatz rotates the reference state $\ket{001}$ (one particle in the ground orbital) into a general single-particle superposition:
+\begin{equation}
+  U(\theta, \varphi) = \exp\left\{
+    \theta(a_1^\dagger a_0 - a_0^\dagger a_1)
+    + \varphi(a_2^\dagger a_0 - a_0^\dagger a_2)
+  \right\}
+  \label{eq:ucc}
+\end{equation}
+
+\subsection{Reparametrization (Eq.~23)}
+
+Defining $\alpha \equiv \sqrt{\theta^2 + \varphi^2}$ and $\sin\beta \equiv \theta/\alpha$:
+\begin{equation}
+  \boxed{
+    \ket{\psi(\alpha,\beta)} = \cos\alpha\,\ket{001}
+      + \sin\alpha\sin\beta\,\ket{010}
+      + \sin\alpha\cos\beta\,\ket{100}
+  }
+  \label{eq:ansatz_state}
+\end{equation}
+
+This is the most general state with exactly one particle (up to global phase), parametrized by just 2 real numbers $(\alpha, \beta)$.
+
+\subsection{Circuit Decomposition (Fig.~1)}
+
+The paper provides a low-depth gate decomposition using $RY$ rotations, CNOT gates, and one $X$ gate. The circuit has depth~5 and uses 8 gates total.
+
+Starting from $\ket{000}$, the sequence of gates is:
+\begin{enumerate}[nosep]
+  \item $RY(\beta)$ on qubit~1
+  \item $RY(2\alpha)$ on qubit~0
+  \item CNOT: qubit~0 $\to$ qubit~2
+  \item CNOT: qubit~2 $\to$ qubit~1
+  \item $X$ on qubit~0
+  \item $RY(-\beta)$ on qubit~1
+  \item CNOT: qubit~2 $\to$ qubit~1
+  \item CNOT: qubit~1 $\to$ qubit~2
+\end{enumerate}
+
+The correctness can be verified by tracing through the 8-component statevector and confirming it produces \eqref{eq:ansatz_state}.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{ansatz.build\_ansatz()} returns a \texttt{QuantumCircuit} with parameters \texttt{alpha} and \texttt{beta}. The function \texttt{ansatz\_state(alpha, beta)} computes the statevector analytically for validation.
+
+
+%=============================================================================
+\section{The VQE Algorithm}
+%=============================================================================
+
+\subsection{Variational Principle (Eq.~21)}
+
+For any trial state $\ket{\psi(\alpha,\beta)}$:
+\begin{equation}
+  \mel{\psi(\alpha,\beta)}{H_3}{\psi(\alpha,\beta)} \geq E_0
+\end{equation}
+where $E_0$ is the ground state energy. VQE finds the parameters $(\alpha^*, \beta^*)$ that minimize the left-hand side.
+
+\subsection{Measurement Strategy}
+
+On a quantum computer, one cannot directly measure $\langle H_3 \rangle$. Instead:
+\begin{enumerate}[nosep]
+  \item Prepare $\ket{\psi(\alpha,\beta)}$ using the ansatz circuit.
+  \item Measure each of the 9 traceless Pauli terms (Eqs.~\ref{eq:H1}--\ref{eq:H9}) separately.
+  \item Combine: $\langle H_3 \rangle = \sum_{i=0}^{9} c_i \langle P_i \rangle$ where $P_i$ is the Pauli operator and $c_i$ the coefficient.
+\end{enumerate}
+
+Each Pauli string expectation value requires measuring in the appropriate basis (Hadamard for $X$, $S^\dagger$--Hadamard for $Y$, computational basis for $Z$).
+
+\subsection{Classical Optimization}
+
+The paper uses the \textbf{COBYLA} algorithm (Constrained Optimization By Linear Approximation), a derivative-free method well-suited for the noisy cost function landscape of quantum hardware. It typically converges in $\sim$50--100 iterations for this system.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{quarksim.simulation.run\_vqe()} implements the full VQE loop using exact statevector simulation (Qiskit \texttt{Statevector}). Uses \texttt{scipy.optimize.minimize} with COBYLA.
+
+
+%=============================================================================
+\section{Error Mitigation}
+%=============================================================================
+
+The paper employs \textbf{zero-noise extrapolation} (Section~II.E) to correct for decoherence on real hardware.
+
+\textbf{Model:} Under a global depolarizing channel with layer success rates $r_i$, the noisy expectation value of a traceless operator scales as:
+\begin{equation}
+  \langle H_3^i \rangle(\lambda) = \mel{\tilde{0}}{\tilde{U}^\dagger H_3^i \tilde{U}}{\tilde{0}}\; r^\lambda, \qquad 1 \leq i \leq 9
+\end{equation}
+where $\lambda$ is a noise scaling parameter ($\lambda=1$ is the base circuit).
+
+\textbf{Procedure:}
+\begin{enumerate}[nosep]
+  \item Run the circuit at multiple noise levels $\lambda = 1, 2, 3, 4, 5$.
+  \item Fit an exponential $A \cdot r^\lambda$ to each $\langle H_3^i \rangle(\lambda)$.
+  \item Extrapolate to $\lambda = 0$ (noiseless limit).
+\end{enumerate}
+
+This method is \textbf{not implemented} in the current code, which uses noiseless statevector simulation. It could be added using Qiskit Aer's depolarizing noise models.
+
+
+%=============================================================================
+\section{Excited States via Orthogonalization}
+%=============================================================================
+
+The paper generalizes VQE to excited states (Section~II.D) by orthogonalizing with respect to the ground state.
+
+Given the ground state $\ket{\psi(\alpha_0, \beta_0)}$, the first excited state is found by minimizing $\langle H_3 \rangle$ over all states $\ket{\psi(\alpha, \beta)}$ satisfying:
+\begin{equation}
+  \braket{\psi(\alpha_0, \beta_0)|\psi(\alpha, \beta)} = 0
+\end{equation}
+
+The orthogonality constraint reduces the 2-parameter space to a single parameter $\gamma$ (Eqs.~37--39):
+\begin{align}
+  \cos\alpha_1 &= -\sin\alpha_0 \cos\gamma \\
+  \sin\alpha_1 \sin\beta_1 &= \cos\alpha_0 \sin\beta_0 \cos\gamma + \cos\beta_0 \sin\gamma \\
+  \sin\alpha_1 \cos\beta_1 &= \cos\alpha_0 \cos\beta_0 \cos\gamma - \sin\beta_0 \sin\gamma
+\end{align}
+
+Appendix~B of the paper proves that errors in the excited state estimates are bounded by the ground state error: $|\delta_1| \leq \delta_0$ and $|\delta_2| \leq \delta_0$.
+
+This is \textbf{not yet implemented} but can be added by parametrizing the ansatz in terms of $\gamma$ and minimizing over it.
+
+
+%=============================================================================
+\section{Results}
+%=============================================================================
+
+\subsection{Paper's Expected Values}
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+State & Exact diag.\ (MeV) & Noiseless VQE (MeV) & Real hardware (MeV) \\
+\midrule
+1S (ground) & 492.6 & $493 \pm 1$ & $502 \pm 98$ \\
+2S (excited) & 1210.8 & $1212 \pm 2$ & --- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Ground state wavefunction (Eq.~36):
+\begin{equation}
+  \ket{\psi_{1S}} = -0.9858\ket{001} - 0.1369\ket{010} - 0.09722\ket{100}
+\end{equation}
+with $\alpha_0 = 3.31$, $\beta_0 = 0.95$.
+
+\subsection{Our Code's Results}
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Quantity & Value \\
+\midrule
+$E_0$ (exact diag.) & 492.63 MeV \\
+$E_1$ (exact diag.) & 1210.84 MeV \\
+$E_2$ (exact diag.) & 2151.64 MeV \\
+$E_0$ (VQE, statevector) & 492.63 MeV \\
+$\alpha$ (VQE) & 3.311 \\
+$\beta$ (VQE) & 0.955 \\
+Wavefunction & $-0.986\ket{0} - 0.137\ket{1} - 0.097\ket{2}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+All results match the paper to within numerical precision.
+
+
+%=============================================================================
+\section{Bugs Fixed from Original Code}
+%=============================================================================
+
+The original implementation (in \texttt{QC of Heavy Quarkonium/QHO\_elemetnts.py}) contained two critical bugs:
+
+\subsection{Bug 1: Missing $\omega$ in off-diagonal kinetic terms}
+
+The off-diagonal kinetic energy contributions to the Pauli coefficients were missing the factor of $\omega$:
+\begin{lstlisting}
+# WRONG (original code):
+Tk["4"] = -np.sqrt(3/2)           # missing * omega
+Tk["5"] = -np.sqrt(5)             # missing * omega
+\end{lstlisting}
+
+The diagonal terms (indices 0--3) correctly included \texttt{omega}, but indices 4--7 did not. Since $\omega = 562.9$~MeV, this made the off-diagonal kinetic contributions $\sim$563$\times$ too small.
+
+\subsection{Bug 2: Wrong matrix element in $H_3^9$}
+
+\begin{lstlisting}
+# WRONG (original code):
+H["9"]["coeff"] = (1/2) * (Tk["9"] + Vnm["00"])  # uses V_00
+# CORRECT:
+H["9"]["coeff"] = (1/2) * (Tk["9"] + Vnm["02"])  # should be V_02
+\end{lstlisting}
+
+The $YZY$ term (Eq.~\ref{eq:H9}) uses the same matrix element $h_{02}$ as the $XZX$ term (Eq.~\ref{eq:H8}). The original code erroneously used $V_{00}$ instead of $V_{02}$.
+
+\subsection{Fix Approach}
+
+Rather than patching the hardcoded dictionary, the new code computes the full matrix $h_{mn}$ from \texttt{kinetic\_element()} and \texttt{potential\_element()}, then derives all 10 Pauli coefficients directly from the matrix. This eliminates the possibility of such transcription errors and is validated by \texttt{validate\_pauli\_hamiltonian()}.
+
+
+%=============================================================================
+\section{Code--Equation Mapping}
+%=============================================================================
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Paper equation & Code location & Description \\
+\midrule
+Eq.~(1): $V(r)$ & \texttt{hamiltonian.potential\_element()} & Cornell potential \\
+Eq.~(5): $\mel{m}{T}{n}$ & \texttt{hamiltonian.kinetic\_element()} & Kinetic energy \\
+Eqs.~(6--7) & \texttt{hamiltonian.potential\_element()} & Potential integrals \\
+Eqs.~(8--9) & \texttt{hamiltonian.build\_pauli\_hamiltonian()} & Jordan-Wigner \\
+Eqs.~(11--20) & \texttt{hamiltonian.build\_pauli\_hamiltonian()} & 10-term decomposition \\
+Eq.~(22): $U(\theta,\varphi)$ & \texttt{ansatz.build\_ansatz()} & UCC circuit \\
+Eq.~(23): $\ket{\psi(\alpha,\beta)}$ & \texttt{ansatz.ansatz\_state()} & Analytical state \\
+VQE loop & \texttt{quarksim.simulation.run\_vqe()} & Optimization \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+
+%=============================================================================
+\section{Running the Simulation}
+%=============================================================================
+
+\begin{lstlisting}[language=bash]
+# Install
+uv venv && source .venv/bin/activate
+uv pip install -e .
+
+# Run
+python -m quarksim.gallimore.run --seed 42
+
+# With options
+python -m quarksim.gallimore.run --maxiter 500 --output results/gallimore
+\end{lstlisting}
+
+\textbf{Output files:}
+\begin{itemize}[nosep]
+  \item \texttt{vqe\_result.json} --- full simulation record
+  \item \texttt{convergence.png} --- VQE energy vs.\ iteration
+  \item \texttt{energy\_levels.png} --- energy level comparison
+  \item \texttt{wavefunction.png} --- ground state wavefunction amplitudes
+\end{itemize}
+
+\end{document}

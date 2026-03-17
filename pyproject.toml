@@ -1,0 +1,23 @@
+[project]
+name = "quarksim"
+version = "0.1.0"
+description = "Quantum computing simulations for heavy quarkonium spectroscopy"
+requires-python = ">=3.10"
+dependencies = [
+    "qiskit>=1.0",
+    "qiskit-aer>=0.13",
+    "numpy",
+    "scipy",
+    "matplotlib",
+    "mpmath",
+]
+
+[project.optional-dependencies]
+ibm = ["qiskit-ibm-runtime>=0.20"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["quarksim*"]
