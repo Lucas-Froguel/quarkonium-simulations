@@ -311,9 +311,12 @@ def plot_zne_per_term(
 
         if "r_fit" in data:
             lam_fine = np.linspace(0, max(lambdas) + 0.5, 50)
-            a, r = data["extrapolated"], data["r_fit"]
-            ax.plot(lam_fine, a * r ** lam_fine, "C0--", alpha=0.5)
-            ax.scatter(0, a, color="C3", marker="s", s=50, zorder=6, label="ZNE")
+            a_plus_c = data["extrapolated"]
+            r = data["r_fit"]
+            c = data.get("c_fit", 0.0)
+            a = a_plus_c - c
+            ax.plot(lam_fine, a * r ** lam_fine + c, "C0--", alpha=0.5)
+            ax.scatter(0, a_plus_c, color="C3", marker="s", s=50, zorder=6, label="ZNE")
 
         if exact_term_values and label in exact_term_values:
             ax.scatter(

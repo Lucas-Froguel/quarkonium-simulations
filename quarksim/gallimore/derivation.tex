@@ -10,6 +10,8 @@
 \usepackage{enumitem}
 \usepackage{listings}
 \usepackage{xcolor}
+\usepackage{graphicx}
+\usepackage{subcaption}
 
 \geometry{margin=1in}
 \hypersetup{colorlinks=true, linkcolor=blue, urlcolor=blue, citecolor=blue}
@@ -339,25 +341,98 @@ The paper uses the \textbf{COBYLA} algorithm (Constrained Optimization By Linear
 
 
 %=============================================================================
-\section{Error Mitigation}
+\section{Error Mitigation: Zero-Noise Extrapolation}
 %=============================================================================
 
-The paper employs \textbf{zero-noise extrapolation} (Section~II.E) to correct for decoherence on real hardware.
+The paper employs \textbf{zero-noise extrapolation} (ZNE, Section~II.E) to correct for decoherence on real hardware.
 
-\textbf{Model:} Under a global depolarizing channel with layer success rates $r_i$, the noisy expectation value of a traceless operator scales as:
+\subsection{The Paper's Model}
+
+Under a global depolarizing channel with layer success rates $r_i$, the noisy expectation value of a traceless operator scales as:
 \begin{equation}
   \langle H_3^i \rangle(\lambda) = \mel{\tilde{0}}{\tilde{U}^\dagger H_3^i \tilde{U}}{\tilde{0}}\; r^\lambda, \qquad 1 \leq i \leq 9
+  \label{eq:zne_model}
 \end{equation}
-where $\lambda$ is a noise scaling parameter ($\lambda=1$ is the base circuit).
+where $\lambda$ is a noise scaling parameter ($\lambda=1$ is the base circuit). The key idea: by running the circuit at multiple noise levels, one can fit the exponential decay and extrapolate back to $\lambda=0$ (the noiseless limit).
 
-\textbf{Procedure:}
-\begin{enumerate}[nosep]
-  \item Run the circuit at multiple noise levels $\lambda = 1, 2, 3, 4, 5$.
-  \item Fit an exponential $A \cdot r^\lambda$ to each $\langle H_3^i \rangle(\lambda)$.
-  \item Extrapolate to $\lambda = 0$ (noiseless limit).
-\end{enumerate}
+\subsection{Circuit Folding}
 
-This method is \textbf{not implemented} in the current code, which uses noiseless statevector simulation. It could be added using Qiskit Aer's depolarizing noise models.
+To increase $\lambda$ without changing the logical operation, the circuit is \textbf{folded}: $U$ is replaced by $U \cdot (U^\dagger U)^n$, which is logically identical to $U$ but has $(2n+1)\times$ the depth. The additional gate layers accumulate proportionally more noise, giving an effective scale factor $\lambda = 2n+1$.
+
+\textbf{Implementation subtlety:} When simulating ZNE, the circuit transpiler must be run with \texttt{optimization\_level=0}. Otherwise, the transpiler recognizes $U^\dagger U = I$ and simplifies the folded circuit back to $U$, defeating the purpose of the noise amplification.
+
+\subsection{Our Improved Fit Model}
+
+The paper fits each traceless term with $y(\lambda) = A \cdot r^\lambda$. In our simulated experiments, this model fails for terms with small noiseless values (specifically $H_3^5 = X_1 X_2$ and $H_3^7 = Y_1 Y_2$), exactly as the paper reports:
+\begin{quote}
+``the plots for $\langle H_3^5 \rangle$ and $\langle H_3^7 \rangle$ conform especially poorly to the global depolarizing model.''
+\end{quote}
+
+The root cause: depolarizing noise on the measurement basis-rotation gates ($H$ for $X$, $S^\dagger H$ for $Y$) creates a \textbf{constant positive bias} that is independent of $\lambda$. For terms with large noiseless values ($\langle P\rangle \sim 1$), this bias is negligible. But for terms with small noiseless values ($\langle P\rangle \sim 0.03$), the bias dominates and the measured values actually \emph{increase} with $\lambda$ --- the opposite of what \eqref{eq:zne_model} predicts.
+
+We address this with an improved fit model that includes a constant offset:
+\begin{equation}
+  \boxed{y(\lambda) = A \cdot r^\lambda + c}
+  \label{eq:zne_improved}
+\end{equation}
+where $c$ captures the measurement noise floor. At $\lambda=0$, the noiseless estimate is $y(0) = A + c$. This model correctly handles both well-behaved terms (where $c \approx 0$) and bias-dominated terms (where $c$ absorbs the offset).
+
+\subsection{Comparison: Paper's Model vs.\ Improved Model}
+
+Figures~\ref{fig:zne_total} and~\ref{fig:zne_perterm} compare the two ZNE models side by side. The data is from a simulated run with 2\% per-gate depolarizing noise and 65{,}536 shots per Pauli term, at noise scale factors $\lambda = 1, 3, 5, 7$ via global circuit folding.
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{zne_paper_model.png}
+  \caption{Paper's model: $y = A \cdot r^\lambda$}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{zne_improved_model.png}
+  \caption{Improved model: $y = A \cdot r^\lambda + c$}
+\end{subfigure}
+\caption{Total energy vs.\ noise scale factor $\lambda$ under the two ZNE models. Both extrapolate to $\lambda = 0$ (red square) to estimate the noiseless energy. Green dashed line = exact diagonalization (492.6~MeV). The improved model incorporates the measurement noise offset $c$.}
+\label{fig:zne_total}
+\end{figure}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{zne_per_term_paper_model.png}
+  \caption{Paper's model: $y = A \cdot r^\lambda$}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{zne_per_term_improved_model.png}
+  \caption{Improved model: $y = A \cdot r^\lambda + c$}
+\end{subfigure}
+\caption{Per-Pauli-term ZNE (analogous to the paper's Fig.~3). Blue dots = noisy measurements at each $\lambda$; red squares = ZNE extrapolation to $\lambda = 0$; green stars = noiseless exact values. Key difference visible in the \texttt{XXI} and \texttt{YYI} panels: the paper's model produces a flat fit (the data \emph{increases} with $\lambda$, violating $r \leq 1$), while the improved model correctly separates the decaying signal from the constant measurement bias.}
+\label{fig:zne_perterm}
+\end{figure}
+
+\begin{center}
+\begin{tabular}{lrc}
+\toprule
+Method & Energy (MeV) & Error vs.\ exact \\
+\midrule
+Noisy VQE ($\lambda=1$, 2\% per-gate) & $\sim$665 & $+172$ MeV \\
+ZNE --- paper's model ($A \cdot r^\lambda$) & $481 \pm 9$ & $-12$ MeV \\
+ZNE --- improved model ($A \cdot r^\lambda + c$) & $489 \pm 28$ & $-4$ MeV \\
+Exact diagonalization & 492.6 & --- \\
+Paper's ZNE (real hardware) & $502 \pm 98$ & $+9$ MeV \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent The paper's model undershoots the exact energy because the flat fits on \texttt{XXI} / \texttt{YYI} overestimate those terms at $\lambda = 0$. The improved model is closer to exact but has wider error bars (3 fit parameters vs.\ 2 gives less-constrained extrapolation). Both are substantial improvements over the uncorrected noisy VQE.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{quarksim.simulation.run\_zne()} implements the full pipeline. Use \texttt{-{}-noise 0.02 -{}-zne} when running \texttt{quarksim.gallimore.run}.
 
 
 %=============================================================================
@@ -380,7 +455,10 @@ The orthogonality constraint reduces the 2-parameter space to a single parameter
 
 Appendix~B of the paper proves that errors in the excited state estimates are bounded by the ground state error: $|\delta_1| \leq \delta_0$ and $|\delta_2| \leq \delta_0$.
 
-This is \textbf{not yet implemented} but can be added by parametrizing the ansatz in terms of $\gamma$ and minimizing over it.
+For the 2nd excited state (3S), once two orthonormal states are known the third is fully determined as the cross product in the 3D amplitude space.
+
+\vspace{0.3em}
+\noindent\textbf{Code:} \texttt{ansatz.orthogonal\_state(alpha0, beta0, gamma)} constructs the orthogonal state parametrized by $\gamma$. \texttt{simulation.run\_vqe\_excited()} optimizes over $\gamma$ via bounded scalar minimization. \texttt{ansatz.third\_state()} computes the 2nd excited state from the first two via cross product.
 
 
 %=============================================================================
@@ -425,40 +503,6 @@ Wavefunction & $-0.986\ket{0} - 0.137\ket{1} - 0.097\ket{2}$ \\
 \end{center}
 
 All results match the paper to within numerical precision.
-
-
-%=============================================================================
-\section{Bugs Fixed from Original Code}
-%=============================================================================
-
-The original implementation (in \texttt{QC of Heavy Quarkonium/QHO\_elemetnts.py}) contained two critical bugs:
-
-\subsection{Bug 1: Missing $\omega$ in off-diagonal kinetic terms}
-
-The off-diagonal kinetic energy contributions to the Pauli coefficients were missing the factor of $\omega$:
-\begin{lstlisting}
-# WRONG (original code):
-Tk["4"] = -np.sqrt(3/2)           # missing * omega
-Tk["5"] = -np.sqrt(5)             # missing * omega
-\end{lstlisting}
-
-The diagonal terms (indices 0--3) correctly included \texttt{omega}, but indices 4--7 did not. Since $\omega = 562.9$~MeV, this made the off-diagonal kinetic contributions $\sim$563$\times$ too small.
-
-\subsection{Bug 2: Wrong matrix element in $H_3^9$}
-
-\begin{lstlisting}
-# WRONG (original code):
-H["9"]["coeff"] = (1/2) * (Tk["9"] + Vnm["00"])  # uses V_00
-# CORRECT:
-H["9"]["coeff"] = (1/2) * (Tk["9"] + Vnm["02"])  # should be V_02
-\end{lstlisting}
-
-The $YZY$ term (Eq.~\ref{eq:H9}) uses the same matrix element $h_{02}$ as the $XZX$ term (Eq.~\ref{eq:H8}). The original code erroneously used $V_{00}$ instead of $V_{02}$.
-
-\subsection{Fix Approach}
-
-Rather than patching the hardcoded dictionary, the new code computes the full matrix $h_{mn}$ from \texttt{kinetic\_element()} and \texttt{potential\_element()}, then derives all 10 Pauli coefficients directly from the matrix. This eliminates the possibility of such transcription errors and is validated by \texttt{validate\_pauli\_hamiltonian()}.
-
 
 %=============================================================================
 \section{Code--Equation Mapping}

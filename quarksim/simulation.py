@@ -460,32 +460,46 @@ def run_zne(
             extrapolated_energy += coeff.real * 1.0
             continue
 
-        # Fit y(lambda) = a * r^lambda
-        # At lambda=0: y(0) = a (noiseless value)
+        # Fit y(lambda) = a * r^lambda + c
+        # The constant c accounts for the noise floor from measurement
+        # basis-rotation gates (H for X, S†H for Y), which creates a
+        # bias independent of the ansatz noise level.
+        # At lambda=0: y(0) = a + c  (noiseless value)
+        #
+        # The paper's simpler model y = a * r^lambda (no offset) fails
+        # for terms with small noiseless values (XXI, YYI) where the
+        # measurement bias dominates — the same issue noted in Section III.A.
         try:
-            def exp_model(lam, a, r):
-                return a * np.power(r, lam)
+            def exp_model(lam, a, r, c):
+                return a * np.power(r, lam) + c
 
-            # Initial guess: a = first measurement, r = decay ratio
-            a0 = values[0]
-            r0 = 0.8 if abs(a0) > 1e-10 else 0.5
+            # Initial guesses from the data trend
+            a0 = values[0] - values[-1]  # decaying part
+            r0 = 0.8
+            c0 = values[-1]              # asymptotic offset
             popt, pcov = curve_fit(
                 exp_model, lambdas, values,
-                p0=[a0, r0],
-                bounds=([-np.inf, 0.0], [np.inf, 1.0]),
+                p0=[a0, r0, c0],
+                bounds=([-np.inf, 0.01, -np.inf], [np.inf, 0.9999, np.inf]),
                 maxfev=5000,
             )
-            a_fit, r_fit = popt
-            a_std = np.sqrt(pcov[0, 0]) if pcov[0, 0] >= 0 else 0.0
+            a_fit, r_fit, c_fit = popt
+            extrapolated_val = a_fit + c_fit  # y(0) = a + c
+            # Propagate uncertainty: var(a+c) = var(a) + var(c) + 2*cov(a,c)
+            a_var = max(pcov[0, 0], 0)
+            c_var = max(pcov[2, 2], 0)
+            ac_cov = pcov[0, 2]
+            extrap_std = np.sqrt(a_var + c_var + 2 * ac_cov) if (a_var + c_var + 2 * ac_cov) >= 0 else 0.0
 
             per_term[label] = {
-                "extrapolated": float(a_fit),
-                "std": float(a_std),
+                "extrapolated": float(extrapolated_val),
+                "std": float(extrap_std),
                 "r_fit": float(r_fit),
+                "c_fit": float(c_fit),
                 "values": values.tolist(),
             }
-            extrapolated_energy += coeff.real * a_fit
-            extrapolated_var += (coeff.real * a_std) ** 2
+            extrapolated_energy += coeff.real * extrapolated_val
+            extrapolated_var += (coeff.real * extrap_std) ** 2
 
         except (RuntimeError, ValueError):
             # Fit failed — fall back to lambda=1 value
