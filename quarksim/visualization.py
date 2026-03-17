@@ -343,3 +343,257 @@ def plot_zne_per_term(
         fig.savefig(save_path, dpi=150, bbox_inches="tight")
 
     return fig, axes
+
+
+# ---------------------------------------------------------------------------
+# TTITE (Yi, Huo, Liu, Fan, Zhang & Cao) visualization functions
+# ---------------------------------------------------------------------------
+
+
+def plot_ite_convergence(
+    tau_values_dict: dict[str, list[float]],
+    energy_dict: dict[str, list[float]],
+    fidelity_dict: dict[str, list[float]],
+    exact_energy: float | None = None,
+    title: str = "ITE Convergence",
+    ylabel_energy: str = r"Energy $E_\tau$",
+    ylabel_fidelity: str = r"Fidelity $F$",
+    save_path: str | Path | None = None,
+):
+    """Dual-axis plot: energy (left) and fidelity (right) vs imaginary time tau.
+
+    Reproduces the layout of Figures 2 and 4 from the TTITE paper.
+    Multiple curves per axis, one per method.
+
+    Args:
+        tau_values_dict: {"method_name": [tau_0, tau_1, ...], ...}
+        energy_dict: {"method_name": [E_0, E_1, ...], ...}
+        fidelity_dict: {"method_name": [F_0, F_1, ...], ...}
+        exact_energy: Exact ground state energy for dashed reference line.
+        title: Plot title.
+        ylabel_energy: Left y-axis label.
+        ylabel_fidelity: Right y-axis label.
+        save_path: If given, save figure to this path.
+
+    Returns:
+        (fig, (ax_energy, ax_fidelity)) matplotlib objects.
+    """
+    fig, ax1 = plt.subplots(figsize=(8, 5))
+    ax2 = ax1.twinx()
+
+    # Color palette: blues for energy, oranges/reds for fidelity
+    energy_colors = ["#1f77b4", "#2ca02c", "#9467bd", "#17becf"]
+    fidelity_colors = ["#ff7f0e", "#d62728", "#e377c2", "#bcbd22"]
+    markers_e = ["v", "^", "s", "D"]
+    markers_f = ["v", "^", "s", "D"]
+
+    for i, (method, taus) in enumerate(tau_values_dict.items()):
+        ec = energy_colors[i % len(energy_colors)]
+        fc = fidelity_colors[i % len(fidelity_colors)]
+        mk_e = markers_e[i % len(markers_e)]
+        mk_f = markers_f[i % len(markers_f)]
+
+        if method in energy_dict:
+            ax1.plot(
+                taus, energy_dict[method],
+                color=ec, marker=mk_e, markersize=5, linewidth=1.5,
+                label=f"E-{method}",
+            )
+        if method in fidelity_dict:
+            ax2.plot(
+                taus, fidelity_dict[method],
+                color=fc, marker=mk_f, markersize=5, linewidth=1.5,
+                label=f"F-{method}",
+            )
+
+    if exact_energy is not None:
+        ax1.axhline(
+            y=exact_energy, color="gray", linestyle="--", linewidth=1.5,
+            label="GS energy",
+        )
+
+    ax1.set_xlabel(r"Time $\tau$")
+    ax1.set_ylabel(ylabel_energy)
+    ax2.set_ylabel(ylabel_fidelity)
+    ax1.set_title(title)
+
+    # Combine legends from both axes
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="center right", fontsize=8)
+
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig, (ax1, ax2)
+
+
+def plot_potential_energy_surface(
+    D_values: np.ndarray | list[float],
+    energy_curves: dict[str, list[float]],
+    exact_gs_energies: list[float] | None = None,
+    initial_energies: list[float] | None = None,
+    title: str = r"H$_2$ Potential Energy Surface",
+    save_path: str | Path | None = None,
+):
+    """Plot energy vs interatomic distance D for different (tau, order) combos.
+
+    Reproduces Figure 3 of the TTITE paper.
+
+    Args:
+        D_values: Array of interatomic distances.
+        energy_curves: {"label": [E(D_0), E(D_1), ...], ...}
+        exact_gs_energies: Exact ground state energies at each D.
+        initial_energies: Initial state energies at each D (tau=0).
+        title: Plot title.
+        save_path: If given, save figure to this path.
+
+    Returns:
+        (fig, ax) matplotlib objects.
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    if initial_energies is not None:
+        ax.plot(D_values, initial_energies, "k-", linewidth=1.5, label="Initial energy")
+
+    if exact_gs_energies is not None:
+        ax.plot(
+            D_values, exact_gs_energies, "k--", linewidth=1.5,
+            marker="*", markersize=6, label="GS energy",
+        )
+
+    markers = ["o", "s", "^", "v", "D", "p"]
+    colors = plt.cm.viridis(np.linspace(0.2, 0.9, len(energy_curves)))
+
+    for i, (label, energies) in enumerate(energy_curves.items()):
+        ax.plot(
+            D_values, energies,
+            color=colors[i], marker=markers[i % len(markers)],
+            markersize=5, linewidth=1.2, label=label,
+        )
+
+    ax.set_xlabel(r"Interatomic distance $D$ ($\AA$)")
+    ax.set_ylabel(r"Energy $E_\tau$")
+    ax.set_title(title)
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig, ax
+
+
+def plot_multi_size_convergence(
+    tau_values_dict: dict[str, list[float]],
+    norm_energy_dict: dict[str, list[float]],
+    fidelity_dict: dict[str, list[float]],
+    title: str = "Heisenberg Ground State at Different Sizes",
+    save_path: str | Path | None = None,
+):
+    """Plot normalized energy and fidelity vs tau for multiple system sizes.
+
+    Reproduces Figure 5 of the TTITE paper.
+
+    Args:
+        tau_values_dict: {"n=3": [tau_0, ...], "n=6": [...], ...}
+        norm_energy_dict: {"n=3": [NE_0, ...], ...}
+        fidelity_dict: {"n=3": [F_0, ...], ...}
+        title: Plot title.
+        save_path: If given, save figure to this path.
+
+    Returns:
+        (fig, (ax1, ax2)) matplotlib objects.
+    """
+    fig, ax1 = plt.subplots(figsize=(8, 5))
+    ax2 = ax1.twinx()
+
+    colors = ["#1f77b4", "#2ca02c", "#d62728", "#9467bd"]
+    markers = ["o", "s", "^", "D"]
+
+    for i, (label, taus) in enumerate(tau_values_dict.items()):
+        c = colors[i % len(colors)]
+        m = markers[i % len(markers)]
+
+        if label in norm_energy_dict:
+            ax1.plot(
+                taus, norm_energy_dict[label],
+                color=c, marker=m, markersize=4, linewidth=1.2,
+                label=f"NE-{label}",
+            )
+        if label in fidelity_dict:
+            ax2.plot(
+                taus, fidelity_dict[label],
+                color=c, marker=m, markersize=4, linewidth=1.2,
+                linestyle="--", alpha=0.7,
+                label=f"F-{label}",
+            )
+
+    ax1.set_xlabel(r"Time $\tau$")
+    ax1.set_ylabel(r"Normalized energy $NE_\tau$")
+    ax2.set_ylabel(r"Fidelity $F$")
+    ax1.set_title(title)
+
+    lines1, labels1 = ax1.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax1.legend(lines1 + lines2, labels1 + labels2, loc="center right", fontsize=7)
+
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig, (ax1, ax2)
+
+
+def plot_vqite_convergence(
+    energy_histories: list[list[float]],
+    exact_energies: list[float] | None = None,
+    state_labels: list[str] | None = None,
+    title: str = "VQITE Convergence",
+    ylabel: str = r"Energy [fm$^{-1}$]",
+    save_path: str | Path | None = None,
+):
+    """Plot VQITE energy vs imaginary time step for multiple states.
+
+    Reproduces the style of Woloshyn Figs. 4-6: solid lines for each state
+    converging to horizontal dashed lines (exact eigenvalues).
+
+    Args:
+        energy_histories: List of energy-vs-step lists, one per state.
+        exact_energies: Exact eigenvalues for horizontal reference lines.
+        state_labels: Labels for each state (e.g., ["1S", "2S", "3S", "4S"]).
+        title: Plot title.
+        ylabel: Y-axis label.
+        save_path: If given, save figure to this path.
+
+    Returns:
+        (fig, ax) matplotlib objects.
+    """
+    colors = ["red", "green", "blue", "magenta"]
+    fig, ax = plt.subplots(figsize=(8, 6))
+
+    for i, hist in enumerate(energy_histories):
+        color = colors[i % len(colors)]
+        label = state_labels[i] if state_labels else f"State {i+1}"
+        ax.plot(hist, color=color, linewidth=1.5, label=label)
+
+    if exact_energies is not None:
+        for i, e in enumerate(exact_energies):
+            color = colors[i % len(colors)] if i < len(energy_histories) else "gray"
+            ax.axhline(
+                y=e, color=color, linestyle="--", linewidth=1, alpha=0.6,
+            )
+
+    ax.set_xlabel("Step")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend(loc="upper right")
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig, ax
