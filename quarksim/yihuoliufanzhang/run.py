@@ -38,6 +38,7 @@ from quarksim.yihuoliufanzhang.evolution import (
     run_ite_exact,
     run_trotter_ite,
     run_ttite,
+    run_ttite_circuit,
 )
 from quarksim.yihuoliufanzhang.hamiltonian import (
     build_h2_hamiltonian,
@@ -58,7 +59,7 @@ def _make_h2_initial_state_fig3() -> np.ndarray:
     return state / np.linalg.norm(state)
 
 
-def reproduce_figure_2(output_dir: Path):
+def reproduce_figure_2(output_dir: Path, use_circuit: bool = False):
     """Figure 2: H2 at D=0.35, energy/fidelity convergence vs tau.
 
     5th-order Taylor expansion (expansion to 4th term, i.e., j=0..4 -> order=4).
@@ -81,7 +82,7 @@ def reproduce_figure_2(output_dir: Path):
     print("  Running Trotter ITE...")
     trotter = run_trotter_ite(ham, psi0, tau, dt)
 
-    print(f"  Running TTITE (order={order})...")
+    print(f"  Running TTITE matrix (order={order})...")
     ttite = run_ttite(ham, psi0, tau, dt, order)
 
     print(f"  Final TTITE energy: {ttite.final_energy:.6f}  (exact: {gs_energy:.6f})")
@@ -103,6 +104,21 @@ def reproduce_figure_2(output_dir: Path):
         "Trotter ITE": trotter.fidelity_history,
         "Proposed": ttite.fidelity_history,
     }
+
+    # Circuit-based simulation: run the actual LCU quantum circuits
+    if use_circuit:
+        print(f"  Running TTITE via Qiskit circuits (order={order})...")
+        ttite_circ = run_ttite_circuit(ham, psi0, tau, dt, order)
+        n_circ = ttite_circ.metadata.get("total_circuits_executed", 0)
+        print(f"  Circuit TTITE energy: {ttite_circ.final_energy:.6f}")
+        print(f"  Circuit TTITE fidelity: {ttite_circ.final_fidelity:.6f}")
+        print(f"  Total LCU circuits executed: {n_circ}")
+        print(f"  Avg success probability: "
+              f"{np.mean(ttite_circ.success_probabilities):.4f}")
+
+        tau_dict["Proposed (circuit)"] = ttite_circ.tau_values
+        energy_dict["Proposed (circuit)"] = ttite_circ.energy_history
+        fidelity_dict["Proposed (circuit)"] = ttite_circ.fidelity_history
 
     plot_ite_convergence(
         tau_dict, energy_dict, fidelity_dict,
@@ -301,6 +317,11 @@ def main():
         help="Output directory",
     )
     parser.add_argument("--no-plots", action="store_true", help="Skip plots")
+    parser.add_argument(
+        "--circuit", action="store_true",
+        help="Run via actual Qiskit quantum circuits (LCU + postselection) "
+             "instead of direct matrix math.",
+    )
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -317,7 +338,7 @@ def main():
     # --- Figure reproduction mode ---
     if not args.no_plots:
         if args.figure in ("2", "all"):
-            reproduce_figure_2(output_dir)
+            reproduce_figure_2(output_dir, use_circuit=args.circuit)
         if args.figure in ("3", "all"):
             reproduce_figure_3(output_dir)
         if args.figure in ("4", "all"):
@@ -332,7 +353,9 @@ def main():
             shutil.copy2(png, pkg_dir / png.name)
 
     # --- Single-system run (always) ---
-    print(f"\n=== Running TTITE: system={args.system} ===")
+    run_fn = run_ttite_circuit if args.circuit else run_ttite
+    mode_label = "circuit" if args.circuit else "matrix"
+    print(f"\n=== Running TTITE ({mode_label}): system={args.system} ===")
 
     if args.system == "h2":
         ham = build_h2_hamiltonian(args.D)
@@ -349,11 +372,16 @@ def main():
     print(f"  Exact GS energy: {gs_energy:.6f}")
     print(f"  Parameters: tau={tau}, dt={dt}, order={args.order}")
 
-    result = run_ttite(ham, psi0, tau, dt, args.order)
+    result = run_fn(ham, psi0, tau, dt, args.order)
 
     print(f"\n  TTITE final energy: {result.final_energy:.6f}")
     print(f"  TTITE final fidelity: {result.final_fidelity:.6f}")
     print(f"  Error vs exact: {result.final_energy - gs_energy:.6f}")
+    if args.circuit:
+        n_circ = result.metadata.get("total_circuits_executed", 0)
+        print(f"  Total LCU circuits executed: {n_circ}")
+        if result.success_probabilities:
+            print(f"  Avg success probability: {np.mean(result.success_probabilities):.4f}")
 
     # --- Save results ---
     record = SimulationRecord(

@@ -16,10 +16,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 from scipy.linalg import expm
-from qiskit.quantum_info import SparsePauliOp
+from qiskit.quantum_info import SparsePauliOp, Statevector
 
 from quarksim.simulation import exact_diagonalization
-from quarksim.yihuoliufanzhang.circuit import taylor_coefficients
+from quarksim.yihuoliufanzhang.circuit import (
+    taylor_coefficients,
+    build_trotter_step_circuit,
+    build_improved_trotter_step_circuit,
+)
 
 
 @dataclass
@@ -303,4 +307,145 @@ def run_trotter_ite(
         tau_values=tau_values,
         ground_state_energy=float(gs_energy),
         metadata={"method": "trotter_ite", "dt": dt, "n_segments": L},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Circuit-based simulation (actual quantum circuits via Qiskit)
+# ---------------------------------------------------------------------------
+
+
+def _postselect_ancilla_0(full_sv: np.ndarray) -> tuple[np.ndarray, float]:
+    """Postselect on ancilla qubit 0 being |0>.
+
+    In Qiskit convention, qubit 0 is the least-significant bit.
+    Ancilla=|0> corresponds to even-index amplitudes.
+
+    Returns:
+        (work_state, success_probability)
+    """
+    postselected = full_sv[0::2]
+    norm_sq = float(np.real(postselected.conj() @ postselected))
+    success_prob = norm_sq
+    if norm_sq > 1e-30:
+        postselected = postselected / np.sqrt(norm_sq)
+    return postselected, success_prob
+
+
+def run_ttite_circuit(
+    hamiltonian: SparsePauliOp,
+    initial_state: np.ndarray,
+    tau_total: float,
+    dt: float,
+    order: int,
+    improved: bool = False,
+) -> TTITEResult:
+    """Run TTITE using actual Qiskit quantum circuits with postselection.
+
+    For each Trotter step, this builds the real LCU circuit (Algorithm 1),
+    simulates it with Qiskit Statevector, and postselects on ancilla=|0>.
+    This proves the circuits correctly implement the TTITE algorithm.
+
+    Args:
+        hamiltonian: SparsePauliOp Hamiltonian.
+        initial_state: Initial statevector (normalized, n-qubit).
+        tau_total: Total imaginary time.
+        dt: Trotter segment duration.
+        order: Taylor expansion order R.
+        improved: If True, use the improved circuit (Fig. 7) with higher
+            success probability.
+
+    Returns:
+        TTITEResult with energy/fidelity histories.
+    """
+    from quarksim.yihuoliufanzhang.hamiltonian import decompose_to_pauli_terms
+
+    # Exact diagonalization for reference
+    eigenvalues, eigenvectors = exact_diagonalization(hamiltonian)
+    gs_energy = eigenvalues[0]
+    gs_state = eigenvectors[:, 0]
+
+    H_matrix = hamiltonian.to_matrix()
+    terms = decompose_to_pauli_terms(hamiltonian)
+    n_qubits = hamiltonian.num_qubits
+
+    L = int(round(tau_total / dt))
+
+    state = initial_state.copy().astype(complex)
+    norm = np.linalg.norm(state)
+    if norm > 1e-30:
+        state = state / norm
+
+    # Track at tau=0
+    energy_history = [float(_compute_energy(state, H_matrix))]
+    fidelity_history = [float(_compute_fidelity(state, gs_state))]
+    tau_values = [0.0]
+    success_probs = []
+    total_circuits = 0
+
+    circuit_builder = (
+        build_improved_trotter_step_circuit if improved
+        else build_trotter_step_circuit
+    )
+
+    for step in range(1, L + 1):
+        segment_prob = 1.0
+
+        for c_i, label, _mat in terms:
+            is_identity = all(p == "I" for p in label)
+
+            if is_identity:
+                # Identity: scalar factor, no circuit needed
+                factor = np.exp(-c_i * dt)
+                state = state * factor
+                norm_val = np.linalg.norm(state)
+                if norm_val > 1e-30:
+                    state = state / norm_val
+                continue
+
+            # Build the LCU circuit
+            lcu = circuit_builder(n_qubits, label, c_i, dt, order)
+            total_circuits += 1
+
+            # Create combined state: |0>_ancilla ⊗ |ψ>_work
+            # Qubit 0 = ancilla, qubits 1..n = work
+            combined = np.kron(np.array([1.0, 0.0], dtype=complex), state)
+            sv = Statevector(combined)
+
+            # Evolve through the LCU circuit
+            sv = sv.evolve(lcu)
+
+            # Postselect on ancilla = |0>
+            state, prob = _postselect_ancilla_0(np.array(sv))
+            segment_prob *= prob
+
+        success_probs.append(segment_prob)
+
+        tau = step * dt
+        energy = _compute_energy(state, H_matrix)
+        fidelity = _compute_fidelity(state, gs_state)
+
+        energy_history.append(float(energy))
+        fidelity_history.append(float(fidelity))
+        tau_values.append(float(tau))
+
+    return TTITEResult(
+        final_energy=energy_history[-1],
+        final_fidelity=fidelity_history[-1],
+        final_state=state,
+        energy_history=energy_history,
+        fidelity_history=fidelity_history,
+        tau_values=tau_values,
+        success_probabilities=success_probs,
+        ground_state_energy=float(gs_energy),
+        metadata={
+            "method": "ttite_circuit",
+            "tau_total": tau_total,
+            "dt": dt,
+            "order": order,
+            "n_segments": L,
+            "n_qubits": n_qubits,
+            "improved_circuit": improved,
+            "total_circuits_executed": total_circuits,
+        },
     )

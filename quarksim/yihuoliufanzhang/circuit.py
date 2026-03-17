@@ -82,8 +82,11 @@ def build_trotter_step_circuit(
     qc = QuantumCircuit(n_total)
 
     # Step 1: Encode alpha, beta on ancilla via Ry
+    # We need: Ry(theta)|0> = cos(theta/2)|0> + sin(theta/2)|1>
+    #        = (alpha/norm)|0> + (beta/norm)|1>
+    # Using atan2 preserves the sign of beta (arccos would lose it).
     if norm > 1e-15:
-        theta = 2 * math.acos(np.clip(alpha / norm, -1, 1))
+        theta = 2 * math.atan2(beta, alpha)
         qc.ry(theta, 0)
 
     # Step 2: Controlled-h_i
