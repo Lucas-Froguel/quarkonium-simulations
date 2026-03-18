@@ -449,3 +449,149 @@ def run_ttite_circuit(
             "total_circuits_executed": total_circuits,
         },
     )
+
+
+def run_ttite_circuit_sampled(
+    hamiltonian: SparsePauliOp,
+    initial_state: np.ndarray,
+    tau_total: float,
+    dt: float,
+    order: int,
+    improved: bool = False,
+    max_retries: int = 1000,
+    seed: int | None = None,
+) -> TTITEResult:
+    """Run TTITE with probabilistic ancilla measurement (repeat-until-success).
+
+    This models what happens on real quantum hardware: after each LCU circuit
+    the ancilla is measured. With probability P_s it collapses to |0> (success)
+    and the work state is postselected. With probability 1-P_s it collapses to
+    |1> (failure) and the work state is corrupted — so we re-prepare |psi> and
+    retry that step from scratch.
+
+    Uses exact statevector for state tracking, but the accept/reject at each
+    step is genuinely random, so total circuit count is stochastic.
+
+    Args:
+        hamiltonian: SparsePauliOp Hamiltonian.
+        initial_state: Initial statevector (normalized, n-qubit).
+        tau_total: Total imaginary time.
+        dt: Trotter segment duration.
+        order: Taylor expansion order R.
+        improved: If True, use improved circuit (higher success probability).
+        max_retries: Maximum attempts per Trotter step before giving up.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        TTITEResult with metadata including per-step attempt counts.
+    """
+    from quarksim.yihuoliufanzhang.hamiltonian import decompose_to_pauli_terms
+
+    rng = np.random.default_rng(seed)
+
+    eigenvalues, eigenvectors = exact_diagonalization(hamiltonian)
+    gs_energy = eigenvalues[0]
+    gs_state = eigenvectors[:, 0]
+
+    H_matrix = hamiltonian.to_matrix()
+    terms = decompose_to_pauli_terms(hamiltonian)
+    n_qubits = hamiltonian.num_qubits
+    L = int(round(tau_total / dt))
+
+    state = initial_state.copy().astype(complex)
+    norm = np.linalg.norm(state)
+    if norm > 1e-30:
+        state = state / norm
+
+    circuit_builder = (
+        build_improved_trotter_step_circuit if improved
+        else build_trotter_step_circuit
+    )
+
+    energy_history = [float(_compute_energy(state, H_matrix))]
+    fidelity_history = [float(_compute_fidelity(state, gs_state))]
+    tau_values = [0.0]
+    success_probs = []
+
+    total_attempts = 0
+    total_successes = 0
+    attempts_per_segment = []
+
+    for step in range(1, L + 1):
+        segment_attempts = 0
+        segment_prob = 1.0
+
+        for c_i, label, _mat in terms:
+            is_identity = all(p == "I" for p in label)
+            if is_identity:
+                factor = np.exp(-c_i * dt)
+                state = state * factor
+                norm_val = np.linalg.norm(state)
+                if norm_val > 1e-30:
+                    state = state / norm_val
+                continue
+
+            lcu = circuit_builder(n_qubits, label, c_i, dt, order)
+
+            # Repeat-until-success: measure ancilla, retry on failure
+            for attempt in range(1, max_retries + 1):
+                total_attempts += 1
+                segment_attempts += 1
+
+                # Prepare |0>|psi> and evolve through the LCU circuit
+                combined = np.kron(np.array([1.0, 0.0], dtype=complex), state)
+                sv = Statevector(combined)
+                sv = sv.evolve(lcu)
+
+                # Compute ancilla |0> probability
+                postselected, p_success = _postselect_ancilla_0(np.array(sv))
+
+                # Simulate the measurement: accept with probability p_success
+                if rng.random() < p_success:
+                    state = postselected
+                    total_successes += 1
+                    segment_prob *= p_success
+                    break
+            else:
+                # Exhausted retries — fall back to deterministic postselection
+                state = postselected
+                total_successes += 1
+                segment_prob *= p_success
+
+        success_probs.append(segment_prob)
+        attempts_per_segment.append(segment_attempts)
+
+        tau = step * dt
+        energy = _compute_energy(state, H_matrix)
+        fidelity = _compute_fidelity(state, gs_state)
+        energy_history.append(float(energy))
+        fidelity_history.append(float(fidelity))
+        tau_values.append(float(tau))
+
+    # Non-identity terms per segment
+    n_nonid = sum(1 for c, l, _ in terms if not all(p == "I" for p in l))
+
+    return TTITEResult(
+        final_energy=energy_history[-1],
+        final_fidelity=fidelity_history[-1],
+        final_state=state,
+        energy_history=energy_history,
+        fidelity_history=fidelity_history,
+        tau_values=tau_values,
+        success_probabilities=success_probs,
+        ground_state_energy=float(gs_energy),
+        metadata={
+            "method": "ttite_circuit_sampled",
+            "tau_total": tau_total,
+            "dt": dt,
+            "order": order,
+            "n_segments": L,
+            "n_qubits": n_qubits,
+            "improved_circuit": improved,
+            "total_attempts": total_attempts,
+            "total_successes": total_successes,
+            "ideal_circuits": n_nonid * L,
+            "attempts_per_segment": attempts_per_segment,
+            "overhead_factor": total_attempts / max(total_successes, 1),
+        },
+    )

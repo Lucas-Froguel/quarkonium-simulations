@@ -77,13 +77,9 @@ def run_noiseless(channels: list[str], cfg: ExperimentConfig, output_dir: Path):
             print(f"    State {k}: E = {r.energy:.4f} (exact: {r.exact_energy:.4f}, "
                   f"error: {r.error:+.4f})")
 
-        print("  VQITE excited states...")
-        vqite_exc = run_vqite_all_states(ch, n_states=4, cfg=cfg)
-        excited_results[ch]["VQITE"] = vqite_exc
-        for r in vqite_exc:
-            k = r.metadata.get("state_index", "?")
-            print(f"    State {k}: E = {r.energy:.4f} (exact: {r.exact_energy:.4f}, "
-                  f"error: {r.error:+.4f})")
+        # VQITE excited states skipped — too slow with circuit-based
+        # metric tensor (swap test overlaps for penalty term)
+        print("  VQITE excited states... (skipped — circuit overhead too high)")
 
     # Save results
     _save_noiseless_results(all_results, excited_results, output_dir)

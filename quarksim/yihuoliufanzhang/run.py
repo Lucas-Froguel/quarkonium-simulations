@@ -39,6 +39,7 @@ from quarksim.yihuoliufanzhang.evolution import (
     run_trotter_ite,
     run_ttite,
     run_ttite_circuit,
+    run_ttite_circuit_sampled,
 )
 from quarksim.yihuoliufanzhang.hamiltonian import (
     build_h2_hamiltonian,
@@ -319,9 +320,15 @@ def main():
     parser.add_argument("--no-plots", action="store_true", help="Skip plots")
     parser.add_argument(
         "--circuit", action="store_true",
-        help="Run via actual Qiskit quantum circuits (LCU + postselection) "
-             "instead of direct matrix math.",
+        help="Run via actual Qiskit quantum circuits (LCU + deterministic "
+             "postselection) instead of direct matrix math.",
     )
+    parser.add_argument(
+        "--sampled", action="store_true",
+        help="Run via Qiskit circuits with probabilistic ancilla measurement "
+             "(repeat-until-success). Shows real survival rates.",
+    )
+    parser.add_argument("--seed", type=int, default=None, help="Random seed")
     args = parser.parse_args()
 
     output_dir = Path(args.output)
@@ -353,8 +360,12 @@ def main():
             shutil.copy2(png, pkg_dir / png.name)
 
     # --- Single-system run (always) ---
-    run_fn = run_ttite_circuit if args.circuit else run_ttite
-    mode_label = "circuit" if args.circuit else "matrix"
+    if args.sampled:
+        mode_label = "sampled"
+    elif args.circuit:
+        mode_label = "circuit"
+    else:
+        mode_label = "matrix"
     print(f"\n=== Running TTITE ({mode_label}): system={args.system} ===")
 
     if args.system == "h2":
@@ -372,16 +383,33 @@ def main():
     print(f"  Exact GS energy: {gs_energy:.6f}")
     print(f"  Parameters: tau={tau}, dt={dt}, order={args.order}")
 
-    result = run_fn(ham, psi0, tau, dt, args.order)
+    if args.sampled:
+        result = run_ttite_circuit_sampled(ham, psi0, tau, dt, args.order, seed=args.seed)
+    elif args.circuit:
+        result = run_ttite_circuit(ham, psi0, tau, dt, args.order)
+    else:
+        result = run_ttite(ham, psi0, tau, dt, args.order)
 
     print(f"\n  TTITE final energy: {result.final_energy:.6f}")
     print(f"  TTITE final fidelity: {result.final_fidelity:.6f}")
     print(f"  Error vs exact: {result.final_energy - gs_energy:.6f}")
-    if args.circuit:
-        n_circ = result.metadata.get("total_circuits_executed", 0)
-        print(f"  Total LCU circuits executed: {n_circ}")
+    if args.circuit or args.sampled:
         if result.success_probabilities:
-            print(f"  Avg success probability: {np.mean(result.success_probabilities):.4f}")
+            print(f"  Avg postselection P(ancilla=0): "
+                  f"{np.mean(result.success_probabilities):.4f}")
+    if args.sampled:
+        meta = result.metadata
+        ideal = meta.get("ideal_circuits", 0)
+        total = meta.get("total_attempts", 0)
+        overhead = meta.get("overhead_factor", 1.0)
+        per_seg = meta.get("attempts_per_segment", [])
+        print(f"\n  --- Sampling statistics ---")
+        print(f"  Ideal circuits (no retries): {ideal}")
+        print(f"  Actual circuit executions:   {total}")
+        print(f"  Overhead factor:             {overhead:.2f}x")
+        print(f"  Attempts per segment:        "
+              f"min={min(per_seg)}, max={max(per_seg)}, "
+              f"mean={np.mean(per_seg):.1f}")
 
     # --- Save results ---
     record = SimulationRecord(

@@ -16,9 +16,9 @@ class ExperimentConfig:
     vqe_shots: int = 8192
 
     # VQITE settings
-    vqite_n_steps: int = 50
-    vqite_dtau: float = 0.02
-    vqite_regularization: float = 1e-4
+    vqite_n_steps: int = 40
+    vqite_dtau: float = 0.05
+    vqite_regularization: float = 1e-3
 
     # TTITE settings
     ttite_tau_total: float = 5.0
