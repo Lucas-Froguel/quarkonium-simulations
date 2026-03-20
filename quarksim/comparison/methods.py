@@ -465,11 +465,17 @@ def _run_ttite_circuit(
 
     wall_evo = time.perf_counter() - t0
 
-    # Final energy: shot-based Pauli measurement on AerSimulator
-    energy_backend = _make_backend(depolarizing_rate)
-    prep_circ = QuantumCircuit(n_work)
-    prep_circ.initialize(final_state_vec, range(n_work))
-    final_energy = _estimate_energy_shot_based(prep_circ, ham, energy_backend, cfg.vqe_shots)
+    # Final energy measurement
+    if use_dm:
+        # Noisy: use Tr(ρH) from the density matrix (the state is mixed,
+        # so extracting a pure state eigenvector is meaningless)
+        final_energy = energy_history[-1]
+    else:
+        # Noiseless: shot-based Pauli measurement on the pure state
+        energy_backend = _make_backend(0.0)
+        prep_circ = QuantumCircuit(n_work)
+        prep_circ.initialize(final_state_vec, range(n_work))
+        final_energy = _estimate_energy_shot_based(prep_circ, ham, energy_backend, cfg.vqe_shots)
 
     wall = time.perf_counter() - t0
 

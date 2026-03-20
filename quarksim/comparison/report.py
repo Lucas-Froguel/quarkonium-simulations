@@ -199,17 +199,21 @@ with $\alpha = 10$. TTITE does not support excited states.
 \section{{Noise Analysis}}
 %=============================================================================
 
-Each method is run under depolarizing noise at rates
-$p \in \{{0, 0.005, 0.01, 0.02, 0.05\}}$:
+All methods run on \texttt{{AerSimulator}} with a depolarizing noise model
+at rates $p \in \{{0, 0.01, 0.05\}}$, with 3 repeats per configuration:
 \begin{{itemize}}[nosep]
-  \item \textbf{{VQE}}: Shot-based measurement through noisy \texttt{{AerSimulator}}.
-    The classical optimizer sees noisy cost function evaluations.
-  \item \textbf{{VQITE}}: Energy gradient computed via parameter-shift rule
-    with noisy shot-based measurements. Metric tensor remains statevector-based.
-  \item \textbf{{TTITE}}: Each Trotter step applies the LCU operator followed
-    by an effective depolarizing channel on the work system, modeled as
-    $\rho \to (1-p_{{eff}})\,T_i\rho T_i^\dagger + p_{{eff}}\,\text{{tr}}(\rho)\,I/d$
-    where $p_{{eff}}$ accounts for the gate count per step.
+  \item \textbf{{VQE}}: Every energy evaluation runs shot-based Pauli
+    measurement circuits on a noisy \texttt{{AerSimulator}}. The COBYLA
+    optimizer sees noisy cost function values.
+  \item \textbf{{VQITE}}: Energy gradient via parameter-shift rule on
+    noisy circuits. Metric tensor via overlap circuits on the same noisy
+    backend. Both gradient and metric are corrupted by gate noise.
+  \item \textbf{{TTITE}}: A single continuous circuit chains all
+    $\sim\!2250$ LCU steps with ancilla \texttt{{reset}} between steps.
+    Gate noise accumulates across the entire circuit. The \texttt{{reset}}
+    instruction does \emph{{not}} postselect---if the ancilla measures
+    $\ket{{1}}$ (failed LCU), the corrupted work state carries forward,
+    modeling realistic hardware behavior.
 \end{{itemize}}
 
 {noise_table}
@@ -229,23 +233,36 @@ $p \in \{{0, 0.005, 0.01, 0.02, 0.05\}}$:
 
 \subsection{{Accuracy}}
 
-In the noiseless limit, all three methods converge to the exact ground-state
-energy to within numerical precision. The key differences emerge under noise:
+In the noiseless limit (shot noise only, no gate errors), all three methods
+converge to the exact ground-state energy within shot-noise precision
+($\sim\!0.01$--$0.03$~fm$^{{-1}}$). The key differences emerge under gate noise:
 \begin{{itemize}}[nosep]
-  \item VQE's classical optimizer can partially adapt to systematic noise,
-    but shot noise limits the achievable accuracy.
-  \item VQITE's natural gradient provides robust convergence even with
-    noisy energy evaluations, as the metric tensor regularizes the updates.
-  \item TTITE accumulates noise through its deep sequential circuit,
-    with each Trotter step adding depolarization to the state.
+  \item \textbf{{VQE is most noise-resilient.}} Its shallow ansatz circuit
+    (depth 3, one CNOT) accumulates minimal gate error per evaluation.
+    COBYLA partially adapts to the noisy landscape. At 1\% depolarizing
+    noise, energy errors remain $\sim\!0.1$--$0.3$~fm$^{{-1}}$.
+  \item \textbf{{VQITE degrades significantly under noise.}} The
+    parameter-shift gradient and overlap-circuit metric tensor are both
+    corrupted by shot and gate noise, causing erratic parameter updates.
+    At 1\% noise, errors reach $\sim\!0.5$--$2$~fm$^{{-1}}$ with high
+    variance between runs.
+  \item \textbf{{TTITE is catastrophically destroyed by noise.}} The
+    continuous circuit of $\sim\!2250$ LCU steps accumulates gate errors
+    at every operation. Additionally, failed postselections (ancilla
+    measuring $\ket{{1}}$) mix the ``wrong'' LCU branch into the work
+    state. At 1\% noise, the state collapses to the maximally mixed
+    state (fidelity $\to 1/d = 0.25$).
 \end{{itemize}}
 
 \subsection{{Convergence Speed}}
 
-VQE convergence depends on the optimizer and landscape geometry. VQITE
-converges monotonically with a rate set by the spectral gap. TTITE
-converges exponentially in imaginary time but requires many sequential
-circuit executions.
+VQE convergence depends on the optimizer and landscape geometry;
+COBYLA typically requires $\sim\!50$--$100$ function evaluations but
+can get trapped in local minima with shot noise. VQITE converges
+monotonically via natural gradient in $\sim\!30$--$40$ steps, though
+each step requires $\sim\!30$ circuit evaluations (gradient + metric tensor).
+TTITE converges deterministically in imaginary time ($\sim\!250$ Trotter
+segments) with the fastest wall-clock time ($<\!1$~s noiseless).
 
 \subsection{{Practical Considerations}}
 
@@ -256,12 +273,23 @@ Criterion & VQE & VQITE & TTITE \\
 \midrule
 Ansatz required & Yes & Yes & No \\
 Ancilla qubits & 0 & 0 & 1 \\
-Noise resilience & Moderate & Moderate & Low \\
+Circuit depth & Shallow (3) & Shallow (3) & Deep ($\sim\!2250$) \\
+Noise resilience & Best & Moderate & Worst \\
 Excited states & Yes (penalty) & Yes (penalty) & No \\
-Convergence guarantee & No & Conditional & Yes \\
+Convergence guarantee & No & Conditional & Yes (noiseless) \\
 \bottomrule
 \end{{tabular}}
 \end{{center}}
+
+\subsection{{Conclusion}}
+
+For near-term noisy quantum hardware, \textbf{{VQE is the clear winner}}:
+its shallow circuits minimize noise exposure, and the classical optimizer
+provides robustness to shot noise. VQITE offers stronger theoretical
+convergence guarantees but is undermined by the circuit cost of computing
+the quantum metric tensor under noise. TTITE is exact in principle but
+fundamentally impractical on noisy hardware---its deep circuit and
+postselection requirements make it a fault-tolerant-era algorithm.
 
 \end{{document}}
 """
@@ -334,7 +362,7 @@ def _build_excited_table(excited_results: dict) -> str:
     for ch in excited_results:
         for method_name, mr_list in excited_results[ch].items():
             for mr in mr_list:
-                k = mr.metadata.get("state_index", "?")
+                k = getattr(mr, "metadata", {}).get("state_index", None) or getattr(mr, "state_index", "?")
                 rows.append(
                     f"    {ch} & {method_name} & {k} & "
                     f"{_fmt(mr.energy)} & {_fmt(mr.exact_energy)} & {_fmt(mr.error, 4)} \\\\"

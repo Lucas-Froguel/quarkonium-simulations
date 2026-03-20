@@ -32,11 +32,17 @@ from quarksim.woloshyn.transitions import (
     e1_matrix_elements,
     m1_overlap,
 )
-from quarksim.woloshyn.vqite import run_vqite, run_vqite_excited
+from quarksim.woloshyn.vqite import (
+    run_vqite,
+    run_vqite_excited,
+    run_vqite_shot_based,
+    run_vqite_excited_shot_based,
+)
 from quarksim.results import SimulationRecord, save_record
 from quarksim.visualization import (
     plot_energy_levels,
     plot_vqite_convergence,
+    plot_vqite_noisy_convergence,
     plot_wavefunction,
 )
 
@@ -59,15 +65,15 @@ def run_channel(channel: str, ansatz, args) -> dict:
     for i, (e, ep) in enumerate(zip(eigvals, exact_paper)):
         print(f"  State {i+1}: {e:.4f}  (paper: {ep:.3f})")
 
-    # --- VQITE ground state ---
-    print(f"\nRunning VQITE ground state ({args.n_steps} steps, dtau={args.dtau})...")
+    # --- VQITE ground state (exact statevector, always runs) ---
+    print(f"\nRunning VQITE ground state (statevector, {args.n_steps} steps, dtau={args.dtau})...")
     gs = run_vqite(pauli_ham, ansatz, n_steps=args.n_steps, dtau=args.dtau)
     amps_gs = physical_amplitudes(gs.wavefunction)
     print(f"  Energy: {gs.energy:.4f} fm^-1  (exact: {eigvals[0]:.4f})")
     print(f"  Wavefunction: {' + '.join(f'{a:.4f}|{i}>' for i, a in enumerate(amps_gs))}")
 
-    # --- VQITE excited states ---
-    print(f"\nRunning VQITE excited states...")
+    # --- VQITE excited states (exact) ---
+    print(f"\nRunning VQITE excited states (statevector)...")
     states = [gs]
     energy_histories = [gs.energy_history]
 
@@ -83,12 +89,67 @@ def run_channel(channel: str, ansatz, args) -> dict:
 
     vqite_energies = [s.energy for s in states]
 
+    # --- Shot-based simulation (noiseless) ---
+    shot_histories = None
+    if args.shots > 0:
+        print(f"\nRunning VQITE ground state (shots={args.shots}, noiseless)...")
+        gs_shot = run_vqite_shot_based(
+            pauli_ham, ansatz,
+            shots=args.shots, depolarizing_rate=0.0,
+            n_steps=args.n_steps, dtau=args.dtau,
+        )
+        print(f"  Energy: {gs_shot.energy:.4f} fm^-1")
+
+        print(f"  Running shot-based excited states...")
+        shot_states = [gs_shot]
+        shot_histories = [gs_shot.energy_history]
+
+        for n_exc in range(1, 4):
+            lower_svs = [s.wavefunction for s in shot_states]
+            exc_shot = run_vqite_excited_shot_based(
+                pauli_ham, ansatz, lower_svs,
+                alpha=10.0, shots=args.shots, depolarizing_rate=0.0,
+                n_steps=args.n_steps + 10, dtau=args.dtau,
+            )
+            shot_states.append(exc_shot)
+            shot_histories.append(exc_shot.energy_history)
+            print(f"  State {n_exc+1}: {exc_shot.energy:.4f} fm^-1")
+
+    # --- Noisy simulation ---
+    noisy_histories = None
+    if args.noise > 0:
+        shots_noisy = args.shots if args.shots > 0 else 20000
+        print(f"\nRunning VQITE ground state (shots={shots_noisy}, depolarizing={args.noise})...")
+        gs_noisy = run_vqite_shot_based(
+            pauli_ham, ansatz,
+            shots=shots_noisy, depolarizing_rate=args.noise,
+            n_steps=args.n_steps, dtau=args.dtau,
+        )
+        print(f"  Energy: {gs_noisy.energy:.4f} fm^-1")
+
+        print(f"  Running noisy excited states...")
+        noisy_states = [gs_noisy]
+        noisy_histories = [gs_noisy.energy_history]
+
+        for n_exc in range(1, 4):
+            lower_svs = [s.wavefunction for s in noisy_states]
+            exc_noisy = run_vqite_excited_shot_based(
+                pauli_ham, ansatz, lower_svs,
+                alpha=10.0, shots=shots_noisy, depolarizing_rate=args.noise,
+                n_steps=args.n_steps + 10, dtau=args.dtau,
+            )
+            noisy_states.append(exc_noisy)
+            noisy_histories.append(exc_noisy.energy_history)
+            print(f"  State {n_exc+1}: {exc_noisy.energy:.4f} fm^-1")
+
     return {
         "channel": channel,
         "eigvals": eigvals,
         "states": states,
         "vqite_energies": vqite_energies,
         "energy_histories": energy_histories,
+        "shot_histories": shot_histories,
+        "noisy_histories": noisy_histories,
     }
 
 
@@ -183,7 +244,19 @@ def main():
         "--transitions", action="store_true",
         help="Compute M1/E1 transition amplitudes (requires all channels)",
     )
+    parser.add_argument(
+        "--shots", type=int, default=0,
+        help="Shots per Pauli term (0 = exact statevector, >0 = shot-based circuit simulation)",
+    )
+    parser.add_argument(
+        "--noise", type=float, default=0.0,
+        help="Depolarizing error rate per gate (0 = noiseless). Implies --shots if shots=0.",
+    )
     args = parser.parse_args()
+
+    # Noise implies shot-based simulation
+    if args.noise > 0 and args.shots == 0:
+        args.shots = 20000
 
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -254,15 +327,31 @@ def main():
         for r in all_results:
             ch = r["channel"]
             exact = r["eigvals"].tolist()
+            labels = [f"State {i+1}" for i in range(4)]
 
+            # Fig. 4-6 style: exact (solid) + shot-based (dashed)
             plot_vqite_convergence(
                 r["energy_histories"],
                 exact_energies=exact,
-                state_labels=[f"State {i+1}" for i in range(4)],
-                title=f"VQITE Convergence — Charmonium {ch}",
+                state_labels=labels,
+                shot_histories=r.get("shot_histories"),
+                title=f"Charmonium {ch}",
                 save_path=output_dir / f"vqite_convergence_{ch}.png",
             )
             print(f"  Saved {output_dir / f'vqite_convergence_{ch}.png'}")
+
+            # Fig. 9-11 style: ideal vs noisy per state
+            if r.get("noisy_histories") is not None:
+                shot_hists = r.get("shot_histories") or r["energy_histories"]
+                for i in range(min(len(shot_hists), len(r["noisy_histories"]))):
+                    plot_vqite_noisy_convergence(
+                        shot_hists[i],
+                        r["noisy_histories"][i],
+                        exact_energy=exact[i] if i < len(exact) else None,
+                        title=f"Charmonium {i+1}$^1${ch[1:]}",
+                        save_path=output_dir / f"vqite_noisy_{ch}_state{i+1}.png",
+                    )
+                print(f"  Saved {output_dir / f'vqite_noisy_{ch}_state*.png'}")
 
             plot_energy_levels(
                 {

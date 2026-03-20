@@ -552,19 +552,24 @@ def plot_vqite_convergence(
     energy_histories: list[list[float]],
     exact_energies: list[float] | None = None,
     state_labels: list[str] | None = None,
+    shot_histories: list[list[float]] | None = None,
     title: str = "VQITE Convergence",
     ylabel: str = r"Energy [fm$^{-1}$]",
     save_path: str | Path | None = None,
 ):
     """Plot VQITE energy vs imaginary time step for multiple states.
 
-    Reproduces the style of Woloshyn Figs. 4-6: solid lines for each state
-    converging to horizontal dashed lines (exact eigenvalues).
+    Reproduces the style of Woloshyn Figs. 4-6:
+      - Solid colored lines: wave function simulator (exact statevector)
+      - Dashed colored lines: ideal quantum simulation (shot-based)
+      - Horizontal thin dashed lines: exact eigenvalues from diagonalization
 
     Args:
-        energy_histories: List of energy-vs-step lists, one per state.
+        energy_histories: Exact statevector histories, one list per state.
         exact_energies: Exact eigenvalues for horizontal reference lines.
         state_labels: Labels for each state (e.g., ["1S", "2S", "3S", "4S"]).
+        shot_histories: Shot-based histories (same structure). Plotted as
+            colored dashed lines when provided.
         title: Plot title.
         ylabel: Y-axis label.
         save_path: If given, save figure to this path.
@@ -580,17 +585,70 @@ def plot_vqite_convergence(
         label = state_labels[i] if state_labels else f"State {i+1}"
         ax.plot(hist, color=color, linewidth=1.5, label=label)
 
+    if shot_histories is not None:
+        for i, hist in enumerate(shot_histories):
+            color = colors[i % len(colors)]
+            label = f"{state_labels[i]} (shots)" if state_labels else f"State {i+1} (shots)"
+            ax.plot(hist, color=color, linewidth=1.2, linestyle="--",
+                    alpha=0.7, label=label)
+
     if exact_energies is not None:
         for i, e in enumerate(exact_energies):
-            color = colors[i % len(colors)] if i < len(energy_histories) else "gray"
             ax.axhline(
-                y=e, color=color, linestyle="--", linewidth=1, alpha=0.6,
+                y=e, color="black", linestyle="--", linewidth=0.8, alpha=0.4,
             )
 
     ax.set_xlabel("Step")
     ax.set_ylabel(ylabel)
     ax.set_title(title)
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper right", fontsize=8)
+    fig.tight_layout()
+
+    if save_path:
+        fig.savefig(save_path, dpi=150, bbox_inches="tight")
+
+    return fig, ax
+
+
+def plot_vqite_noisy_convergence(
+    ideal_history: list[float],
+    noisy_history: list[float],
+    exact_energy: float | None = None,
+    title: str = "VQITE — Noisy Simulation",
+    ylabel: str = r"Energy [fm$^{-1}$]",
+    save_path: str | Path | None = None,
+):
+    """Plot ideal vs noisy VQITE convergence for a single state.
+
+    Reproduces the style of Woloshyn Figs. 9-11: one state at a time,
+    comparing ideal (black), noisy (red), and optionally mitigated (green).
+
+    Args:
+        ideal_history: Energy vs step from noiseless shot-based simulation.
+        noisy_history: Energy vs step from noisy simulation.
+        exact_energy: Exact eigenvalue for horizontal reference.
+        title: Plot title.
+        ylabel: Y-axis label.
+        save_path: If given, save figure to this path.
+
+    Returns:
+        (fig, ax) matplotlib objects.
+    """
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    ax.plot(ideal_history, "k-", linewidth=1.5, label="Ideal simulation")
+    ax.plot(noisy_history, "r-", linewidth=1.2, alpha=0.8, label="Noisy simulation")
+
+    if exact_energy is not None:
+        ax.axhline(
+            y=exact_energy, color="gray", linestyle="--", linewidth=1,
+            label=f"Exact: {exact_energy:.3f}",
+        )
+
+    ax.set_xlabel("Step")
+    ax.set_ylabel(ylabel)
+    ax.set_title(title)
+    ax.legend()
     fig.tight_layout()
 
     if save_path:

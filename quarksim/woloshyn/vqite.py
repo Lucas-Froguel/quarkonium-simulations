@@ -15,6 +15,11 @@ The variational parameters theta evolve as:
 where:
     C_i = -dE/d(theta_i)       (Eq. 10, energy gradient)
     A_ij = -d^2 <psi|psi(theta)> / d(theta_i) d(theta_j)   (Eq. 11, metric tensor)
+
+Three simulation modes:
+  1. Exact statevector (shots=0): run_vqite(), run_vqite_excited()
+  2. Shot-based noiseless (shots>0, noise=0): run_vqite_shot_based()
+  3. Shot-based noisy (shots>0, noise>0): run_vqite_shot_based()
 """
 
 from dataclasses import dataclass, field
@@ -22,6 +27,11 @@ from dataclasses import dataclass, field
 import numpy as np
 from qiskit.circuit import QuantumCircuit
 from qiskit.quantum_info import SparsePauliOp, Statevector
+
+from quarksim.simulation import (
+    _estimate_energy_shot_based,
+    make_noise_model,
+)
 
 
 @dataclass
@@ -272,6 +282,225 @@ def run_vqite_excited(
     final_sv = _get_statevector(ansatz, theta)
     final_energy = Statevector(final_sv).expectation_value(hamiltonian).real
     energy_history.append(effective_energy(theta))
+    param_history.append(theta.tolist())
+
+    return VQITEResult(
+        energy=final_energy,
+        parameters=theta,
+        wavefunction=final_sv,
+        energy_history=energy_history,
+        param_history=param_history,
+        n_steps=n_steps,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Shot-based / noisy VQITE (Sections 3 and 5 of the paper)
+# ---------------------------------------------------------------------------
+
+
+def _get_energy_shot_based(
+    ansatz: QuantumCircuit,
+    hamiltonian: SparsePauliOp,
+    params: np.ndarray,
+    backend,
+    shots: int,
+) -> float:
+    """Estimate <H> by measuring each Pauli term with finite shots."""
+    bound = ansatz.assign_parameters(params)
+    return _estimate_energy_shot_based(bound, hamiltonian, backend, shots)
+
+
+def compute_energy_gradient_shot_based(
+    ansatz: QuantumCircuit,
+    hamiltonian: SparsePauliOp,
+    params: np.ndarray,
+    backend,
+    shots: int,
+) -> np.ndarray:
+    """Compute C_i = -dE/d(theta_i) via parameter-shift rule with shot-based energy.
+
+    Same algorithm as the exact version, but each energy evaluation runs
+    actual circuits on the backend with finite measurement shots.
+    """
+    n_params = len(params)
+    C = np.zeros(n_params)
+
+    for k in range(n_params):
+        shift = np.zeros(n_params)
+        shift[k] = np.pi / 2
+
+        e_plus = _get_energy_shot_based(ansatz, hamiltonian, params + shift, backend, shots)
+        e_minus = _get_energy_shot_based(ansatz, hamiltonian, params - shift, backend, shots)
+
+        C[k] = -(e_plus - e_minus) / 2.0
+
+    return C
+
+
+def run_vqite_shot_based(
+    hamiltonian: SparsePauliOp,
+    ansatz: QuantumCircuit,
+    shots: int = 20000,
+    depolarizing_rate: float = 0.0,
+    n_steps: int = 50,
+    dtau: float = 0.02,
+    theta0: np.ndarray | None = None,
+    regularization: float = 1e-3,
+) -> VQITEResult:
+    """Run VQITE with shot-based energy evaluation and optional noise.
+
+    The energy gradient C is computed by running actual quantum circuits
+    on an AerSimulator backend with finite measurement shots. The metric
+    tensor A is computed exactly via statevector (cheap for 2 qubits and
+    avoids the instability of noisy A inversion).
+
+    Args:
+        hamiltonian: Pauli Hamiltonian.
+        ansatz: Parameterized ansatz circuit.
+        shots: Measurement shots per Pauli term.
+        depolarizing_rate: Per-gate depolarizing error (0 = shot noise only).
+        n_steps: Number of imaginary time steps.
+        dtau: Step size.
+        theta0: Initial parameters. Default: all 0.5.
+        regularization: Tikhonov regularization for A + lambda*I.
+            Larger than exact mode (1e-3 vs 1e-4) to absorb shot noise.
+
+    Returns:
+        VQITEResult with convergence history.
+    """
+    from qiskit_aer import AerSimulator
+
+    if depolarizing_rate > 0:
+        noise_model = make_noise_model(depolarizing_rate)
+        backend = AerSimulator(noise_model=noise_model)
+    else:
+        backend = AerSimulator()
+
+    n_params = ansatz.num_parameters
+    if theta0 is None:
+        theta0 = np.full(n_params, 0.5)
+    theta = theta0.copy()
+
+    energy_history = []
+    param_history = []
+
+    for step in range(n_steps):
+        # Shot-based energy for recording
+        energy = _get_energy_shot_based(ansatz, hamiltonian, theta, backend, shots)
+        energy_history.append(energy)
+        param_history.append(theta.tolist())
+
+        # Shot-based gradient, exact metric
+        C = compute_energy_gradient_shot_based(ansatz, hamiltonian, theta, backend, shots)
+        A = compute_metric_tensor(ansatz, theta)
+
+        A_reg = A + regularization * np.eye(n_params)
+        theta_dot = np.linalg.solve(A_reg, C)
+        theta = theta + dtau * theta_dot
+
+    # Final energy (shot-based for consistency)
+    final_energy = _get_energy_shot_based(ansatz, hamiltonian, theta, backend, shots)
+    energy_history.append(final_energy)
+    param_history.append(theta.tolist())
+
+    # Wavefunction from exact statevector (for analysis)
+    final_sv = _get_statevector(ansatz, theta)
+
+    return VQITEResult(
+        energy=final_energy,
+        parameters=theta,
+        wavefunction=final_sv,
+        energy_history=energy_history,
+        param_history=param_history,
+        n_steps=n_steps,
+    )
+
+
+def run_vqite_excited_shot_based(
+    hamiltonian: SparsePauliOp,
+    ansatz: QuantumCircuit,
+    lower_states: list[np.ndarray],
+    alpha: float = 10.0,
+    shots: int = 20000,
+    depolarizing_rate: float = 0.0,
+    n_steps: int = 50,
+    dtau: float = 0.02,
+    theta0: np.ndarray | None = None,
+    regularization: float = 1e-3,
+) -> VQITEResult:
+    """Run VQITE for an excited state with shot-based energy + penalty.
+
+    The Hamiltonian energy is measured via shots. The penalty term
+    |<phi|psi>|^2 is computed exactly via statevector (cheap for 2 qubits).
+
+    Args:
+        hamiltonian: Pauli Hamiltonian.
+        ansatz: Parameterized ansatz circuit.
+        lower_states: Statevectors of lower-lying states.
+        alpha: Penalty strength.
+        shots: Measurement shots per Pauli term.
+        depolarizing_rate: Per-gate depolarizing error.
+        n_steps: Number of VQITE steps.
+        dtau: Step size.
+        theta0: Initial parameters.
+        regularization: Tikhonov regularization for A.
+
+    Returns:
+        VQITEResult for the excited state.
+    """
+    from qiskit_aer import AerSimulator
+
+    if depolarizing_rate > 0:
+        noise_model = make_noise_model(depolarizing_rate)
+        backend = AerSimulator(noise_model=noise_model)
+    else:
+        backend = AerSimulator()
+
+    n_params = ansatz.num_parameters
+    if theta0 is None:
+        theta0 = np.full(n_params, 0.5)
+    theta = theta0.copy()
+
+    energy_history = []
+    param_history = []
+
+    def effective_energy_shot(params):
+        """E_eff = <H>_shots + alpha * sum |<phi|psi>|^2_exact."""
+        e = _get_energy_shot_based(ansatz, hamiltonian, params, backend, shots)
+        sv = _get_statevector(ansatz, params)
+        for phi in lower_states:
+            e += alpha * abs(np.vdot(phi, sv)) ** 2
+        return e
+
+    def effective_gradient_shot(params):
+        """C_i = -dE_eff/d(theta_i) via parameter-shift with shots."""
+        n = len(params)
+        C = np.zeros(n)
+        for k in range(n):
+            shift = np.zeros(n)
+            shift[k] = np.pi / 2
+            e_plus = effective_energy_shot(params + shift)
+            e_minus = effective_energy_shot(params - shift)
+            C[k] = -(e_plus - e_minus) / 2.0
+        return C
+
+    for step in range(n_steps):
+        e_eff = effective_energy_shot(theta)
+        energy_history.append(e_eff)
+        param_history.append(theta.tolist())
+
+        C = effective_gradient_shot(theta)
+        A = compute_metric_tensor(ansatz, theta)
+        A_reg = A + regularization * np.eye(n_params)
+
+        theta_dot = np.linalg.solve(A_reg, C)
+        theta = theta + dtau * theta_dot
+
+    # Final energy (actual Hamiltonian, no penalty, exact for reporting)
+    final_sv = _get_statevector(ansatz, theta)
+    final_energy = Statevector(final_sv).expectation_value(hamiltonian).real
+    energy_history.append(effective_energy_shot(theta))
     param_history.append(theta.tolist())
 
     return VQITEResult(

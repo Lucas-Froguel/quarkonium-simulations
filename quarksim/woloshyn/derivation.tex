@@ -330,6 +330,17 @@ This is exact (not a finite-difference approximation) because $RY(\theta) = e^{-
 \end{equation}
 with $\varepsilon = 10^{-4}$. The matrix $A$ is regularized as $A + \lambda I$ ($\lambda = 10^{-4}$) to handle near-singular cases when the state is close to a critical point in parameter space.
 
+\subsection{Three Simulation Modes}
+
+Our implementation supports three simulation modes, matching the paper:
+\begin{enumerate}[nosep]
+  \item \textbf{Wave function simulator} (\texttt{shots=0}): Exact statevector evaluation via \texttt{Statevector.expectation\_value()}. No circuits are executed. This is equivalent to the paper's PennyLane \texttt{default.qubit} with \texttt{shots=None}.
+  \item \textbf{Ideal quantum simulation} (\texttt{shots>0}, \texttt{noise=0}): Each Pauli term is measured by running an actual circuit on the Qiskit \texttt{AerSimulator} with finite shots. This introduces \textbf{shot noise} (statistical sampling uncertainty) but no systematic errors.
+  \item \textbf{Noisy simulation} (\texttt{shots>0}, \texttt{noise>0}): Same as mode~2 but with a \textbf{depolarizing noise model} applied to every gate. This simulates the systematic errors present on real quantum hardware.
+\end{enumerate}
+
+In all modes, the energy gradient $C$ uses the corresponding energy estimator (exact or shot-based). The metric tensor $A$ is always computed exactly via statevector---this is cheap for 2~qubits and avoids the numerical instability caused by noisy matrix inversion.
+
 \subsection{Convergence}
 
 \begin{figure}[h]
@@ -352,14 +363,35 @@ with $\varepsilon = 10^{-4}$. The matrix $A$ is regularized as $A + \lambda I$ (
   \includegraphics[width=\textwidth]{vqite_convergence_1P1.png}
   \caption{${}^1P_1$ channel}
 \end{subfigure}
-\caption{VQITE convergence for all three channels. Solid lines show the energy at each imaginary time step; horizontal dashed lines are the eigenvalues from diagonalizing the truncated Hamiltonian. Parameters: $\Delta\tau = 0.02$, initial $\theta_i = 0.5$, 50 steps. Compare with Figs.~4--6 of the paper.}
+\caption{VQITE convergence for all three channels (Figs.~4--6 of the paper). \textbf{Solid lines}: wave function simulator (exact statevector). \textbf{Colored dashed lines}: ideal quantum simulation with 20{,}000 shots per Pauli term. \textbf{Horizontal gray lines}: eigenvalues from diagonalizing the truncated Hamiltonian. Parameters: $\Delta\tau = 0.02$, initial $\theta_i = 0.5$, 50~steps.}
 \label{fig:vqite_convergence}
 \end{figure}
 
-The ground state converges within $\sim$20--30 steps. Excited states (computed via the penalty method, Section~\ref{sec:excited}) take slightly longer.
+The ground state converges within $\sim$20--30 steps. The shot-based curves closely track the exact ones with visible fluctuations from sampling noise. Excited states (computed via the penalty method, Section~\ref{sec:excited}) take slightly longer.
+
+\subsection{Effect of Gate Noise}
+
+\begin{figure}[h]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{vqite_noisy_1S0_state1.png}
+  \caption{$1{}^1S_0$ ground state}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+  \centering
+  \includegraphics[width=\textwidth]{vqite_noisy_1S0_state2.png}
+  \caption{$2{}^1S_0$ first excited state}
+\end{subfigure}
+\caption{Effect of depolarizing gate noise on VQITE convergence for the ${}^1S_0$ channel (compare with Figs.~9--10 of the paper). \textbf{Black}: ideal shot-based simulation (20{,}000 shots, no gate errors). \textbf{Red}: noisy simulation with 1\% depolarizing error per gate. \textbf{Dashed gray}: exact eigenvalue. The noisy simulation converges to a systematically higher energy because the depolarizing channel pushes the state toward the maximally mixed state.}
+\label{fig:vqite_noisy}
+\end{figure}
+
+Under depolarizing noise, the measured energy is biased upward. For a depolarizing rate $p$ per gate, each layer of the circuit has a success probability $r = 1 - p$, and the noisy expectation value of a traceless Pauli operator scales as $\langle P \rangle_{\text{noisy}} \approx r^d \langle P \rangle_{\text{ideal}}$, where $d$ is the circuit depth. This shrinks the signal toward zero, which for the Hamiltonian means the energy is pushed toward the trace (average eigenvalue)---always \emph{above} the ground state.
 
 \vspace{0.3em}
-\noindent\textbf{Code:} \texttt{vqite.run\_vqite()} implements the full loop. \texttt{vqite.compute\_energy\_gradient()} and \texttt{vqite.compute\_metric\_tensor()} compute $C$ and $A$ respectively.
+\noindent\textbf{Code:} \texttt{vqite.run\_vqite()} for exact mode. \texttt{vqite.run\_vqite\_shot\_based()} for shot-based and noisy modes, using \texttt{simulation.\_estimate\_energy\_shot\_based()} and \texttt{simulation.make\_noise\_model()} from the shared infrastructure.
 
 
 %=============================================================================
