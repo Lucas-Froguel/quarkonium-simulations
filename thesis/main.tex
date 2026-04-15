@@ -1,0 +1,506 @@
+\documentclass[12pt,a4paper]{report}
+
+% ── Encoding and fonts ──
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+
+% ── Page layout ──
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{setspace}
+\onehalfspacing
+
+% ── Mathematics ──
+\usepackage{amsmath,amssymb,amsfonts}
+\usepackage{bm}
+
+% ── Graphics and diagrams ──
+\usepackage{graphicx}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta, positioning, shapes.geometric, calc}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usepackage{quantikz}
+
+% ── Tables ──
+\usepackage{booktabs}
+
+% ── Captions and references ──
+\usepackage[font=small,labelfont=bf]{caption}
+\usepackage[hidelinks]{hyperref}
+\usepackage[nameinlink,capitalize]{cleveref}
+
+% ── Bibliography ──
+\usepackage[backend=biber,style=numeric-comp,sorting=none]{biblatex}
+\addbibresource{references.bib}
+
+% ── Custom commands ──
+% \ket, \bra, \braket provided by braket package (loaded via quantikz)
+\newcommand{\expval}[1]{\left\langle#1\right\rangle}
+
+% ══════════════════════════════════════════════════════════════════
+\begin{document}
+
+% ── Title page ──
+\begin{titlepage}
+\centering
+\vspace*{2cm}
+{\LARGE\bfseries Quantum Simulation of Spin-Dependent\\[6pt]
+Charmonium Spectroscopy with\\[6pt]
+Variational Quantum Algorithms\par}
+\vspace{2cm}
+{\Large Master's Thesis\par}
+\vspace{1.5cm}
+{\large Lucas Froguel\par}
+\vfill
+{\large\the\year\par}
+\end{titlepage}
+
+% ── Front matter ──
+\pagenumbering{roman}
+\tableofcontents
+\clearpage
+\pagenumbering{arabic}
+
+% ══════════════════════════════════════════════════════════════════
+\chapter{Introduction}
+\label{ch:introduction}
+
+The simulation of quantum systems lies at the heart of quantum computing's
+promise. As Feynman observed in 1982, classical computers face a fundamental
+barrier when modelling quantum mechanical systems: the Hilbert space of an
+$n$-particle system grows exponentially, rendering exact classical computation
+intractable for even modest system sizes~\cite{feynman1982}. Quantum computers,
+by contrast, naturally encode and manipulate quantum states, offering a path
+toward efficient simulation of physical systems that are otherwise
+inaccessible~\cite{nielsen2010}.
+
+This thesis applies variational quantum algorithms to the spectroscopy of
+charmonium---bound states of a charm quark and its antiquark---including
+spin-dependent interactions that produce the experimentally observed mass
+splittings between states such as the $\eta_c$ and $J/\psi$ mesons. The
+quarkonium system is physically rich enough to probe the capabilities of
+near-term quantum algorithms across multiple quantum number channels and excited
+states, yet small enough to be tractable with only a few qubits.
+
+The remainder of this chapter introduces the three pillars on which this work
+rests: the fundamentals of quantum computing (\cref{sec:qc}), variational
+quantum methods (\cref{sec:variational}), and the quarkonium problem
+(\cref{sec:quarkonium}).
+
+
+% ──────────────────────────────────────────────────────────────────
+\section{Quantum Computing}
+\label{sec:qc}
+
+\subsection{Qubits and quantum states}
+
+The fundamental unit of quantum information is the \emph{qubit}, a two-level
+quantum system whose state is described by a vector in $\mathbb{C}^2$:
+\begin{equation}
+  \label{eq:qubit}
+  \ket{\psi} = \alpha\ket{0} + \beta\ket{1},
+  \qquad |\alpha|^2 + |\beta|^2 = 1,
+\end{equation}
+where $\alpha,\beta\in\mathbb{C}$ are probability amplitudes and
+$\{\ket{0},\ket{1}\}$ is the computational basis. Unlike a classical bit, which
+is deterministically~0 or~1, a qubit exists in a \emph{superposition} of both
+states. Measurement in the computational basis collapses the state, yielding
+$\ket{0}$ with probability $|\alpha|^2$ and $\ket{1}$ with probability
+$|\beta|^2$.
+
+Any single-qubit pure state can be parameterized geometrically on the
+\emph{Bloch sphere}:
+\begin{equation}
+  \label{eq:bloch}
+  \ket{\psi}
+    = \cos\frac{\theta}{2}\,\ket{0}
+    + e^{i\phi}\sin\frac{\theta}{2}\,\ket{1},
+\end{equation}
+with $\theta\in[0,\pi]$ and $\phi\in[0,2\pi)$.
+
+The state of an $n$-qubit system lives in the tensor product space
+$(\mathbb{C}^2)^{\otimes n}$, spanned by $2^n$ computational basis states.
+States that cannot be written as a tensor product of individual qubit states are
+\emph{entangled}---a uniquely quantum resource central to quantum speedups and
+with no classical analogue.
+
+
+\subsection{Quantum gates and circuits}
+
+Quantum computation proceeds through the application of \emph{quantum gates}:
+unitary transformations acting on qubit registers. Single-qubit gates include the
+three Pauli operators,
+\begin{equation}
+  \label{eq:pauli}
+  X = \begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix},\quad
+  Y = \begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix},\quad
+  Z = \begin{pmatrix} 1 & 0 \\ 0 & -1 \end{pmatrix},
+\end{equation}
+which satisfy $\sigma_i^2 = I$ and anticommute pairwise. These generate
+continuous rotation gates on the Bloch sphere,
+\begin{equation}
+  \label{eq:rotations}
+  R_\mu(\theta) = e^{-i\theta\,\mu/2}
+    = \cos\frac{\theta}{2}\,I - i\sin\frac{\theta}{2}\,\mu,
+  \qquad \mu \in \{X,Y,Z\},
+\end{equation}
+and the Hadamard gate $H = (X+Z)/\sqrt{2}$ creates equal superposition from a
+basis state.
+
+Two-qubit entangling gates are essential for generating correlations. The
+controlled-NOT (CNOT) gate flips the target qubit conditioned on the control:
+\begin{equation}
+  \label{eq:cnot}
+  \text{CNOT} = \ket{0}\bra{0}\otimes I + \ket{1}\bra{1}\otimes X
+  = \begin{pmatrix}
+    1 & 0 & 0 & 0 \\
+    0 & 1 & 0 & 0 \\
+    0 & 0 & 0 & 1 \\
+    0 & 0 & 1 & 0
+  \end{pmatrix}.
+\end{equation}
+Arbitrary single-qubit rotations together with the CNOT form a \emph{universal
+gate set}, capable of approximating any unitary transformation on $n$ qubits to
+arbitrary precision~\cite{nielsen2010}.
+
+A quantum algorithm is specified as a \emph{quantum circuit}: a sequence of gates
+applied to a register of qubits, followed by measurement.
+\Cref{fig:bell_circuit} illustrates a circuit that prepares a maximally
+entangled Bell state $(\ket{00}+\ket{11})/\sqrt{2}$ from the initial state
+$\ket{00}$ using only a Hadamard gate and a CNOT.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}
+  \lstick{$\ket{0}$} & \gate{H} & \ctrl{1} & \meter{} \\
+  \lstick{$\ket{0}$} & \qw      & \targ{}  & \meter{}
+\end{quantikz}
+\caption{Quantum circuit preparing the Bell state
+  $\ket{\Phi^+}=(\ket{00}+\ket{11})/\sqrt{2}$. A Hadamard gate creates
+  superposition on the first qubit; the CNOT entangles both qubits.}
+\label{fig:bell_circuit}
+\end{figure}
+
+
+\subsection{The NISQ era}
+
+Current quantum hardware operates in the \emph{Noisy Intermediate-Scale Quantum}
+(NISQ) regime~\cite{preskill2018}, characterized by processors with tens to
+hundreds of qubits subject to gate errors on the order of $10^{-3}$--$10^{-2}$,
+limited qubit connectivity, and coherence times that restrict circuit depth.
+These constraints preclude the deep circuits required by fault-tolerant
+algorithms such as quantum phase estimation, motivating the development of
+shallow-depth methods tailored to near-term devices---chief among them the
+variational approach discussed in the next section.
+
+
+% ──────────────────────────────────────────────────────────────────
+\section{Variational Quantum Methods}
+\label{sec:variational}
+
+\subsection{The variational principle}
+
+Variational methods offer a framework for extracting useful results from NISQ
+hardware. The central idea rests on the \emph{Rayleigh--Ritz variational
+principle}: for a Hamiltonian $H$ with ground state energy $E_0$,
+\begin{equation}
+  \label{eq:variational}
+  E_0 \leq \bra{\psi(\bm{\theta})}H\ket{\psi(\bm{\theta})}
+       \equiv E(\bm{\theta})
+\end{equation}
+for any normalized trial state $\ket{\psi(\bm{\theta})}$ parameterized by
+classical variables $\bm{\theta}\in\mathbb{R}^p$. Minimizing
+$E(\bm{\theta})$ over the parameter space yields an upper bound on $E_0$, with
+equality when $\ket{\psi(\bm{\theta})}$ includes the true ground state in its
+span.
+
+
+\subsection{The hybrid quantum--classical loop}
+
+In the quantum computing implementation~\cite{peruzzo2014,mcclean2016}, the
+trial state is prepared by a \emph{parameterized quantum circuit} (also called an
+\emph{ansatz}) applied to an initial reference state:
+\begin{equation}
+  \label{eq:ansatz}
+  \ket{\psi(\bm{\theta})}
+    = U(\bm{\theta})\ket{0}^{\otimes n},
+\end{equation}
+where $U(\bm{\theta})$ is a product of parameterized and fixed gates. The energy
+expectation value is then estimated on the quantum processor. For a Hamiltonian
+decomposed as a weighted sum of Pauli strings,
+\begin{equation}
+  \label{eq:pauli_decomp}
+  H = \sum_{i=1}^{M} c_i\, P_i,
+  \qquad P_i \in \{I,X,Y,Z\}^{\otimes n},
+\end{equation}
+each expectation value $\expval{P_i}$ is estimated independently through
+repeated state preparation and measurement in the appropriate Pauli basis. The
+total energy,
+\begin{equation}
+  \label{eq:energy_estimator}
+  E(\bm{\theta}) = \sum_{i=1}^{M} c_i \expval{P_i}_{\bm{\theta}},
+\end{equation}
+is passed to a \emph{classical optimizer} that updates $\bm{\theta}$ to
+minimize~$E$. This loop repeats until convergence, as illustrated in
+\cref{fig:vqe_loop}.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+    node distance=1.6cm and 2.5cm,
+    box/.style={
+      draw, rounded corners=4pt, minimum width=3.2cm,
+      minimum height=1cm, align=center, font=\small
+    },
+    arrow/.style={-{Stealth[length=6pt]}, thick},
+  ]
+  % Nodes
+  \node[box, fill=blue!8] (prep) {Prepare\\$\ket{\psi(\bm{\theta})}$};
+  \node[box, fill=blue!8, right=of prep] (meas)
+    {Measure\\$\expval{P_i}_{\bm{\theta}}$};
+  \node[box, fill=orange!10, below=of meas] (eval)
+    {Compute\\$E(\bm{\theta})=\sum c_i\expval{P_i}$};
+  \node[box, fill=orange!10, below=of prep] (opt)
+    {Classical optimizer\\update $\bm{\theta}$};
+
+  % Arrows
+  \draw[arrow] (prep) -- (meas);
+  \draw[arrow] (meas) -- (eval);
+  \draw[arrow] (eval) -- (opt);
+  \draw[arrow] (opt) -- (prep);
+
+  % Labels
+  \node[font=\footnotesize\itshape, above=0.2cm of prep, anchor=south west,
+        xshift=-0.3cm] {Quantum processor};
+  \node[font=\footnotesize\itshape, below=0.2cm of opt, anchor=north west,
+        xshift=-0.3cm] {Classical computer};
+
+  % Dashed separator
+  \draw[dashed, gray] ($(prep.south west)+(-0.7,-0.8)$) --
+                       ($(meas.south east)+(0.7,-0.8)$);
+\end{tikzpicture}
+\caption{Schematic of the hybrid quantum--classical variational loop. The
+  quantum processor prepares a parameterized state and estimates Pauli
+  expectation values; the classical computer evaluates the energy and updates
+  circuit parameters. The loop iterates until convergence.}
+\label{fig:vqe_loop}
+\end{figure}
+
+
+\subsection{Ansatz design and practical considerations}
+
+The choice of ansatz circuit is problem-dependent and critical to performance.
+\emph{Hardware-efficient} ansatze use gates native to the target device,
+minimizing circuit depth at the cost of physical motivation.
+\emph{Physically-motivated} ansatze, such as those inspired by unitary coupled
+cluster theory from quantum chemistry, encode domain knowledge into the circuit
+structure and may converge faster toward the physical ground state.
+
+The hybrid approach offers several advantages for near-term hardware. The quantum
+processor handles the exponentially hard task of preparing and measuring
+many-body quantum states, while the classical optimizer navigates the energy
+landscape using well-established numerical methods. Circuit depths remain
+manageable, and variational methods exhibit a degree of inherent noise
+resilience: small perturbations in the energy surface due to hardware errors are
+partially absorbed by the optimization~\cite{mcclean2016}.
+
+Beyond the ground state, variational frameworks extend naturally to excited
+states through orthogonality constraints and penalty methods, and to quantum
+dynamics through variational formulations of time evolution. These extensions
+broaden the scope of problems addressable on near-term quantum hardware.
+
+
+% ──────────────────────────────────────────────────────────────────
+\section{The Quarkonium Problem}
+\label{sec:quarkonium}
+
+\subsection{Heavy quark bound states}
+
+Quantum chromodynamics (QCD), the gauge theory of the strong interaction,
+governs the binding of quarks and gluons into hadrons. Among the simplest
+hadronic systems are \emph{quarkonia}: bound states of a heavy quark and its
+antiquark ($q\bar{q}$). Charmonium ($c\bar{c}$) systems have served as testing
+grounds for QCD since the simultaneous discovery of the $J/\psi$ meson in 1974
+at BNL~\cite{aubert1974} and SLAC~\cite{augustin1974}---an event known as the
+\emph{November Revolution} in particle physics.
+
+The large mass of the charm quark ($m_c \approx 1.27$~GeV/$c^2$) implies that
+the quark--antiquark pair moves non-relativistically inside the bound state, with
+typical velocities $v/c \sim 0.3$. This justifies a potential model
+approach~\cite{eichten1978} in which the dynamics are governed by the
+non-relativistic Schr\"{o}dinger equation with an effective interquark potential.
+
+
+\subsection{The Cornell potential}
+
+The \emph{Cornell potential}~\cite{eichten1978},
+\begin{equation}
+  \label{eq:cornell}
+  V(r) = -\frac{\kappa}{r} + \sigma\, r,
+\end{equation}
+provides a successful phenomenological description of the $q\bar{q}$ interaction.
+It captures the two essential features of the strong force:
+\begin{itemize}
+  \item \textbf{Short-range Coulomb attraction} ($-\kappa/r$), arising from
+    one-gluon exchange between the color charges, analogous to the
+    electromagnetic Coulomb potential but with QCD coupling;
+  \item \textbf{Long-range linear confinement} ($\sigma\,r$), a consequence of
+    the non-Abelian nature of QCD, modelled by a chromoelectric flux tube
+    (string) with tension $\sigma$ connecting the quark and antiquark.
+\end{itemize}
+Typical parameter values for charmonium are $\kappa \approx 0.52$ and
+$\sigma \approx 0.183$~GeV$^2$~\cite{eichten1978}. \Cref{fig:cornell_potential}
+shows the characteristic shape of this potential.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.65\textwidth,
+    height=0.45\textwidth,
+    xlabel={$r$ (fm)},
+    ylabel={$V(r)$ (GeV)},
+    xmin=0.1, xmax=2.0,
+    ymin=-2.5, ymax=2.0,
+    domain=0.1:2.0,
+    samples=200,
+    grid=major,
+    grid style={gray!30},
+    legend pos=south east,
+    legend style={font=\small},
+    every axis label/.style={font=\small},
+    tick label style={font=\footnotesize},
+  ]
+  % Coulomb part
+  \addplot[blue, dashed, thick]
+    {-0.52/x};
+  \addlegendentry{$-\kappa/r$}
+  % Linear part
+  \addplot[red, dashed, thick]
+    {0.183*x/0.197};
+  \addlegendentry{$\sigma r$}
+  % Cornell (total)
+  \addplot[black, very thick]
+    {-0.52/x + 0.183*x/0.197};
+  \addlegendentry{$V(r) = -\kappa/r + \sigma r$}
+\end{axis}
+\end{tikzpicture}
+\caption{The Cornell potential as a function of interquark separation $r$. The
+  dashed curves show the Coulomb ($-\kappa/r$, blue) and linear confinement
+  ($\sigma r$, red) components; the solid curve is their sum. At short distances
+  the potential is dominated by one-gluon exchange; at large distances the
+  linearly rising string tension ensures quark confinement.}
+\label{fig:cornell_potential}
+\end{figure}
+
+
+\subsection{Spin-dependent interactions}
+
+The spin-independent Cornell potential alone does not account for the full
+charmonium spectrum. The mass splitting between states with different spin
+quantum numbers---for instance, between the $\eta_c$ (${}^1S_0$, spin singlet)
+and the $J/\psi$ (${}^3S_1$, spin triplet)---requires spin-dependent
+corrections. At leading order, the dominant contribution for $S$-wave states is
+the hyperfine contact interaction~\cite{brambilla2011},
+\begin{equation}
+  \label{eq:spin}
+  V_{\text{hyp}}(r) = \frac{32\pi\,\alpha_s}{9\,m_c^2}\,
+  \delta^{(3)}(\mathbf{r})\;\mathbf{S}_c\cdot\mathbf{S}_{\bar{c}},
+\end{equation}
+where $\alpha_s$ is the strong coupling constant and
+$\mathbf{S}_c\cdot\mathbf{S}_{\bar{c}}$ is the spin--spin dot product. The
+eigenvalues of the latter operator distinguish singlet and triplet
+configurations:
+\begin{equation}
+  \label{eq:spin_eigenvalues}
+  \mathbf{S}_c\cdot\mathbf{S}_{\bar{c}} =
+  \begin{cases}
+    -\tfrac{3}{4} & \text{spin singlet } (S=0),\\[4pt]
+    +\tfrac{1}{4} & \text{spin triplet } (S=1).
+  \end{cases}
+\end{equation}
+
+Quarkonium states are classified in spectroscopic notation ${}^{2S+1}L_J$, where
+$S$ is the total spin, $L$ the orbital angular momentum ($S,P,D,\ldots$ for
+$L=0,1,2,\ldots$), and $J$ the total angular momentum. The low-lying charmonium
+states relevant to this work are:
+\begin{itemize}
+  \item ${}^1S_0$: spin singlet, $S$-wave $\longrightarrow$ $\eta_c$ meson
+    ($M \approx 2984$~MeV),
+  \item ${}^3S_1$: spin triplet, $S$-wave $\longrightarrow$ $J/\psi$ meson
+    ($M \approx 3097$~MeV),
+  \item ${}^1P_1$: spin singlet, $P$-wave $\longrightarrow$ $h_c$ meson
+    ($M \approx 3526$~MeV).
+\end{itemize}
+
+
+\subsection{Quarkonium as a quantum simulation testbed}
+
+The full quarkonium Hamiltonian, including kinetic energy and both
+spin-independent and spin-dependent potentials, reads
+\begin{equation}
+  \label{eq:hamiltonian}
+  H = -\frac{1}{2\mu}\nabla^2 + V(r) + V_{\text{hyp}}(r),
+\end{equation}
+where $\mu = m_c/2$ is the reduced mass. Expanding the radial wavefunction in a
+truncated basis of $N$ quantum harmonic oscillator (QHO) eigenstates yields a
+finite-dimensional matrix eigenvalue problem of size $N\times N$, whose entries
+are determined by the matrix elements of the kinetic and potential operators in
+the QHO basis.
+
+This matrix can then be decomposed into a sum of Pauli operators
+(\cref{eq:pauli_decomp}) and encoded on a quantum register of
+$\lceil\log_2 N\rceil$ qubits, making it directly amenable to variational
+quantum algorithms. With $N=3$--$4$ basis states, the problem requires only 2--3
+qubits, placing it firmly within reach of current NISQ devices while retaining
+the essential physics: multiple spectroscopic channels, spin-dependent
+splittings, and a hierarchy of excited states.
+
+This combination of physical richness and computational tractability makes
+quarkonium an ideal testbed for benchmarking quantum simulation algorithms
+against exact solutions and experimental data.
+
+
+% ──────────────────────────────────────────────────────────────────
+\section{Thesis Overview}
+\label{sec:overview}
+
+This thesis investigates the application of variational quantum algorithms to the
+charmonium spectroscopy problem described above. We implement and compare several
+algorithmic approaches for determining both ground and excited state energies
+across the ${}^1S_0$, ${}^3S_1$, and ${}^1P_1$ channels, assess their
+performance under realistic noise conditions, and evaluate error mitigation
+strategies. The goal is twofold: to demonstrate the feasibility of quantum
+simulation for hadronic physics on near-term hardware, and to provide a
+systematic comparison of methods that may inform future applications to more
+complex systems.
+
+The thesis is organized as follows:
+\begin{itemize}
+  \item \textbf{Chapter~2} develops the theoretical framework, including the
+    Hamiltonian construction in the harmonic oscillator basis and the mapping to
+    qubit operators.
+  \item \textbf{Chapter~3} presents the quantum algorithms employed, covering
+    both eigenvalue-based and time-evolution-based variational approaches.
+  \item \textbf{Chapter~4} details the numerical results: energy spectra,
+    convergence properties, and cross-method comparisons.
+  \item \textbf{Chapter~5} addresses the effects of hardware noise and
+    discusses error mitigation techniques.
+  \item \textbf{Chapter~6} concludes with a summary of findings and an outlook
+    on future directions.
+\end{itemize}
+
+
+% ══════════════════════════════════════════════════════════════════
+% Placeholder for future chapters
+% \chapter{Theoretical Framework}
+% \chapter{Quantum Algorithms}
+% \chapter{Results}
+% \chapter{Noise and Error Mitigation}
+% \chapter{Conclusions and Outlook}
+
+% ── Bibliography ──
+\printbibliography[heading=bibintoc]
+
+\end{document}
