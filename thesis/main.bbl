@@ -83,6 +83,37 @@
       \field{title}{Quantum Computation and Quantum Information}
       \field{year}{2010}
     \endentry
+    \entry{bell1964}{article}{}{}
+      \name{author}{1}{}{%
+        {{hash=cf630862cd70124837828aa7e08bbf1f}{%
+           family={Bell},
+           familyi={B\bibinitperiod},
+           given={John\bibnamedelima S.},
+           giveni={J\bibinitperiod\bibinitdelim S\bibinitperiod}}}%
+      }
+      \strng{namehash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{fullhash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{fullhashraw}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{bibnamehash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{authorbibnamehash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{authornamehash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{authorfullhash}{cf630862cd70124837828aa7e08bbf1f}
+      \strng{authorfullhashraw}{cf630862cd70124837828aa7e08bbf1f}
+      \field{sortinit}{6}
+      \field{sortinithash}{b33bc299efb3c36abec520a4c896a66d}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Physics Physique Fizika}
+      \field{number}{3}
+      \field{title}{On the {Einstein}--{Podolsky}--{Rosen} Paradox}
+      \field{volume}{1}
+      \field{year}{1964}
+      \field{pages}{195\bibrangedash 200}
+      \range{pages}{6}
+      \verb{doi}
+      \verb 10.1103/PhysicsPhysiqueFizika.1.195
+      \endverb
+    \endentry
     \entry{preskill2018}{article}{}{}
       \name{author}{1}{}{%
         {{hash=fbe61da8813855105d0c727fa93b4b4d}{%
@@ -99,8 +130,8 @@
       \strng{authornamehash}{fbe61da8813855105d0c727fa93b4b4d}
       \strng{authorfullhash}{fbe61da8813855105d0c727fa93b4b4d}
       \strng{authorfullhashraw}{fbe61da8813855105d0c727fa93b4b4d}
-      \field{sortinit}{4}
-      \field{sortinithash}{9381316451d1b9788675a07e972a12a7}
+      \field{sortinit}{9}
+      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Quantum}
@@ -164,8 +195,8 @@
       \strng{authornamehash}{bddcbb30e0909355294b8653d4787a0e}
       \strng{authorfullhash}{16fda0acd29f1276c07270659e70cdff}
       \strng{authorfullhashraw}{16fda0acd29f1276c07270659e70cdff}
-      \field{sortinit}{5}
-      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Nature Communications}
@@ -209,8 +240,8 @@
       \strng{authornamehash}{836c04a8ead66d709fbf0afad5433010}
       \strng{authorfullhash}{7e5c493347d687b6e14dc4b030f9aa64}
       \strng{authorfullhashraw}{7e5c493347d687b6e14dc4b030f9aa64}
-      \field{sortinit}{5}
-      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{New Journal of Physics}
@@ -242,8 +273,8 @@
       \strng{authornamehash}{ada9526a829b8a2b44285208ab1caabb}
       \strng{authorfullhash}{ada9526a829b8a2b44285208ab1caabb}
       \strng{authorfullhashraw}{ada9526a829b8a2b44285208ab1caabb}
-      \field{sortinit}{7}
-      \field{sortinithash}{108d0be1b1bee9773a1173443802c0a3}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Physical Review Letters}
@@ -275,8 +306,8 @@
       \strng{authornamehash}{697c375f6d9b6e40c4b42b96a5b900e5}
       \strng{authorfullhash}{697c375f6d9b6e40c4b42b96a5b900e5}
       \strng{authorfullhashraw}{697c375f6d9b6e40c4b42b96a5b900e5}
-      \field{sortinit}{8}
-      \field{sortinithash}{a231b008ebf0ecbe0b4d96dcc159445f}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Physical Review Letters}
@@ -326,8 +357,8 @@
       \strng{authornamehash}{ce91d2fdcdbdc896b1fe27bf19889682}
       \strng{authorfullhash}{69a4b04efb22a57be5eccd43d6edda73}
       \strng{authorfullhashraw}{69a4b04efb22a57be5eccd43d6edda73}
-      \field{sortinit}{9}
-      \field{sortinithash}{0a5ebc79d83c96b6579069544c73c7d4}
+      \field{sortinit}{1}
+      \field{sortinithash}{4f6aaa89bab872aa0999fec09ff8e98a}
       \field{labelnamesource}{author}
       \field{labeltitlesource}{title}
       \field{journaltitle}{Physical Review D}

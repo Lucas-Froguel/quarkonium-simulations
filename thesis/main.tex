@@ -93,63 +93,145 @@ quantum methods (\cref{sec:variational}), and the quarkonium problem
 \section{Quantum Computing}
 \label{sec:qc}
 
+\subsection{Why quantum computing?}
+\label{sec:why_qc}
+
+The classical theory of computation, formalized by Turing and Church in the
+1930s, rests on the assumption that information is processed according to
+classical physics. For decades this abstraction posed no practical limitation.
+However, the simulation of quantum mechanical systems reveals a fundamental
+barrier: the state space of an $n$-particle quantum system is a Hilbert space of
+dimension $2^n$, so that a faithful classical representation requires resources
+that grow exponentially with system size. A modest system of 50 interacting
+spin-$\tfrac{1}{2}$ particles, for instance, demands $2^{50}\approx 10^{15}$
+complex amplitudes---exceeding the memory of any existing classical computer.
+
+In 1982, Feynman proposed a radical alternative: rather than simulating quantum
+mechanics on a classical machine, one should use a controllable quantum system to
+simulate another~\cite{feynman1982}. The exponential scaling that makes classical
+simulation intractable becomes an \emph{asset}: a quantum processor with $n$
+qubits naturally inhabits the same $2^n$-dimensional space as the target system.
+This observation laid the conceptual foundation for quantum computing.
+
+The subsequent development of quantum algorithms by Deutsch, Shor, and
+Grover~\cite{nielsen2010} demonstrated that quantum computers are not merely
+faster classical machines, but represent a genuinely different model of
+computation. The complexity class $\mathsf{BQP}$ (bounded-error quantum
+polynomial time) is believed to be strictly larger than its classical counterpart
+$\mathsf{BPP}$, meaning there exist problems for which quantum algorithms
+achieve an exponential advantage that no classical algorithm can
+match~\cite{nielsen2010}. The source of this advantage lies in two uniquely
+quantum phenomena: \emph{superposition}, which allows exploration of exponentially
+many computational paths simultaneously, and \emph{interference}, which enables
+the selective amplification of correct answers and suppression of incorrect ones.
+
+
 \subsection{Qubits and quantum states}
+\label{sec:qubits}
 
 The fundamental unit of quantum information is the \emph{qubit}, a two-level
-quantum system whose state is described by a vector in $\mathbb{C}^2$:
+quantum system whose pure state is described by a normalized vector in
+$\mathbb{C}^2$:
 \begin{equation}
   \label{eq:qubit}
   \ket{\psi} = \alpha\ket{0} + \beta\ket{1},
   \qquad |\alpha|^2 + |\beta|^2 = 1,
 \end{equation}
-where $\alpha,\beta\in\mathbb{C}$ are probability amplitudes and
-$\{\ket{0},\ket{1}\}$ is the computational basis. Unlike a classical bit, which
-is deterministically~0 or~1, a qubit exists in a \emph{superposition} of both
-states. Measurement in the computational basis collapses the state, yielding
-$\ket{0}$ with probability $|\alpha|^2$ and $\ket{1}$ with probability
-$|\beta|^2$.
+where $\alpha,\beta\in\mathbb{C}$ are \emph{probability amplitudes} and
+$\{\ket{0},\ket{1}\}$ is the computational basis (conventionally identified with
+the eigenstates of the Pauli $Z$ operator). Unlike a classical bit, which is
+deterministically~0 or~1, a qubit exists in a coherent \emph{superposition} of
+both basis states.
 
-Any single-qubit pure state can be parameterized geometrically on the
-\emph{Bloch sphere}:
+Geometrically, any single-qubit pure state can be represented as a point on the
+\emph{Bloch sphere} via the parameterization
 \begin{equation}
   \label{eq:bloch}
   \ket{\psi}
     = \cos\frac{\theta}{2}\,\ket{0}
     + e^{i\phi}\sin\frac{\theta}{2}\,\ket{1},
 \end{equation}
-with $\theta\in[0,\pi]$ and $\phi\in[0,2\pi)$.
+with polar angle $\theta\in[0,\pi]$ and azimuthal angle $\phi\in[0,2\pi)$. The
+north and south poles correspond to $\ket{0}$ and $\ket{1}$, respectively, while
+points on the equator represent equal superpositions with varying relative phase.
 
-The state of an $n$-qubit system lives in the tensor product space
-$(\mathbb{C}^2)^{\otimes n}$, spanned by $2^n$ computational basis states.
-States that cannot be written as a tensor product of individual qubit states are
-\emph{entangled}---a uniquely quantum resource central to quantum speedups and
-with no classical analogue.
+For a system of $n$ qubits, the state space is the tensor product
+$\mathcal{H} = (\mathbb{C}^2)^{\otimes n}$, spanned by $2^n$ computational
+basis states $\ket{x_1 x_2 \cdots x_n}$ with $x_i\in\{0,1\}$. A general pure
+state is therefore
+\begin{equation}
+  \label{eq:nqubit}
+  \ket{\Psi} = \sum_{x\in\{0,1\}^n} c_x \ket{x},
+  \qquad \sum_x |c_x|^2 = 1,
+\end{equation}
+requiring $2^n$ complex amplitudes to specify. It is this exponential growth of
+the state space that makes quantum systems both hard to simulate classically and
+powerful as computational devices.
+
+
+\subsection{Entanglement}
+\label{sec:entanglement}
+
+A multi-qubit state is called \emph{separable} (or a product state) if it can be
+written as a tensor product of individual qubit states,
+$\ket{\Psi} = \ket{\psi_1}\otimes\ket{\psi_2}\otimes\cdots\otimes\ket{\psi_n}$.
+States that \emph{cannot} be decomposed in this way are \emph{entangled}. The
+simplest example is the Bell state
+\begin{equation}
+  \label{eq:bell}
+  \ket{\Phi^+} = \frac{1}{\sqrt{2}}\bigl(\ket{00}+\ket{11}\bigr),
+\end{equation}
+which describes two qubits in a joint superposition: neither qubit has a definite
+value, yet their measurement outcomes are perfectly correlated. This correlation
+persists regardless of the spatial separation between the qubits and cannot be
+explained by any local hidden variable theory, as demonstrated by Bell's
+theorem~\cite{bell1964}.
+
+Entanglement is not merely a theoretical curiosity---it is a computational
+resource. Classical correlations can be shared between bits using shared
+randomness, but entangled qubits carry correlations that are strictly stronger.
+In quantum algorithms, entangling gates create superpositions over correlated
+multi-qubit configurations, enabling the exploration of an exponentially large
+solution space in a way that has no classical counterpart. Without entanglement, a
+quantum computer can be efficiently simulated classically~\cite{nielsen2010};
+it is entanglement that unlocks the full power of quantum computation.
 
 
 \subsection{Quantum gates and circuits}
+\label{sec:gates}
 
-Quantum computation proceeds through the application of \emph{quantum gates}:
-unitary transformations acting on qubit registers. Single-qubit gates include the
-three Pauli operators,
+The time evolution of a closed quantum system is governed by a unitary operator.
+Quantum computation exploits this by decomposing the desired evolution into a
+sequence of elementary \emph{quantum gates}: unitary transformations acting on one
+or two qubits at a time.
+
+The three Pauli operators form a basis for single-qubit operations:
 \begin{equation}
   \label{eq:pauli}
   X = \begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix},\quad
   Y = \begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix},\quad
-  Z = \begin{pmatrix} 1 & 0 \\ 0 & -1 \end{pmatrix},
+  Z = \begin{pmatrix} 1 & 0 \\ 0 & -1 \end{pmatrix}.
 \end{equation}
-which satisfy $\sigma_i^2 = I$ and anticommute pairwise. These generate
-continuous rotation gates on the Bloch sphere,
+Together with the identity $I$, they satisfy $\sigma_i^2 = I$, anticommute
+pairwise ($\sigma_i\sigma_j = -\sigma_j\sigma_i$ for $i\neq j$), and form a
+basis for the space of $2\times 2$ Hermitian matrices. Any $2\times 2$ Hermitian
+operator---and hence any single-qubit observable---can be written as
+$A = a_0 I + a_1 X + a_2 Y + a_3 Z$ with $a_i\in\mathbb{R}$.
+
+The Pauli operators generate continuous families of rotation gates on the Bloch
+sphere:
 \begin{equation}
   \label{eq:rotations}
   R_\mu(\theta) = e^{-i\theta\,\mu/2}
     = \cos\frac{\theta}{2}\,I - i\sin\frac{\theta}{2}\,\mu,
-  \qquad \mu \in \{X,Y,Z\},
+  \qquad \mu \in \{X,Y,Z\}.
 \end{equation}
-and the Hadamard gate $H = (X+Z)/\sqrt{2}$ creates equal superposition from a
-basis state.
+The Hadamard gate $H = (X+Z)/\sqrt{2}$ maps $\ket{0}\mapsto(\ket{0}+\ket{1})/\sqrt{2}$,
+creating an equal superposition from a computational basis state.
 
-Two-qubit entangling gates are essential for generating correlations. The
-controlled-NOT (CNOT) gate flips the target qubit conditioned on the control:
+Two-qubit entangling gates introduce correlations between qubits. The
+controlled-NOT (CNOT) gate flips the target qubit conditioned on the control
+qubit being in state $\ket{1}$:
 \begin{equation}
   \label{eq:cnot}
   \text{CNOT} = \ket{0}\bra{0}\otimes I + \ket{1}\bra{1}\otimes X
@@ -160,15 +242,14 @@ controlled-NOT (CNOT) gate flips the target qubit conditioned on the control:
     0 & 0 & 1 & 0
   \end{pmatrix}.
 \end{equation}
-Arbitrary single-qubit rotations together with the CNOT form a \emph{universal
-gate set}, capable of approximating any unitary transformation on $n$ qubits to
-arbitrary precision~\cite{nielsen2010}.
+The set $\{R_X,R_Y,R_Z,\text{CNOT}\}$ constitutes a \emph{universal gate set}:
+any unitary on $n$ qubits can be approximated to arbitrary precision by a finite
+sequence of these gates~\cite{nielsen2010}.
 
 A quantum algorithm is specified as a \emph{quantum circuit}: a sequence of gates
-applied to a register of qubits, followed by measurement.
-\Cref{fig:bell_circuit} illustrates a circuit that prepares a maximally
-entangled Bell state $(\ket{00}+\ket{11})/\sqrt{2}$ from the initial state
-$\ket{00}$ using only a Hadamard gate and a CNOT.
+applied to a register of qubits initialized in a known state, followed by
+measurement. \Cref{fig:bell_circuit} illustrates a minimal circuit that prepares
+the Bell state of \cref{eq:bell} using only a Hadamard gate and a CNOT.
 
 \begin{figure}[htbp]
 \centering
@@ -177,22 +258,180 @@ $\ket{00}$ using only a Hadamard gate and a CNOT.
   \lstick{$\ket{0}$} & \qw      & \targ{}  & \meter{}
 \end{quantikz}
 \caption{Quantum circuit preparing the Bell state
-  $\ket{\Phi^+}=(\ket{00}+\ket{11})/\sqrt{2}$. A Hadamard gate creates
-  superposition on the first qubit; the CNOT entangles both qubits.}
+  $\ket{\Phi^+}=(\ket{00}+\ket{11})/\sqrt{2}$. The Hadamard gate creates a
+  superposition on the first qubit; the CNOT entangles both qubits. Measurement
+  yields $\ket{00}$ or $\ket{11}$, each with probability $1/2$.}
 \label{fig:bell_circuit}
 \end{figure}
 
 
+\subsection{Quantum parallelism and interference}
+\label{sec:parallelism}
+
+The mechanism behind quantum computational advantage is often described loosely
+as ``computing on all inputs at once.'' While evocative, this picture is
+incomplete: the key ingredient is not parallelism alone, but the ability to make
+the parallel branches \emph{interfere}.
+
+Consider a unitary $U_f$ that evaluates a function $f:\{0,1\}^n\to\{0,1\}$.
+Applied to an equal superposition over all $2^n$ inputs, it produces
+\begin{equation}
+  \label{eq:parallelism}
+  U_f \frac{1}{\sqrt{2^n}}\sum_{x=0}^{2^n-1}\ket{x}\ket{0}
+  = \frac{1}{\sqrt{2^n}}\sum_{x=0}^{2^n-1}\ket{x}\ket{f(x)}.
+\end{equation}
+All function values are encoded in a single quantum state. However, measuring
+this state yields a \emph{single} random pair $(x,f(x))$---no better than
+classical evaluation. The power of quantum algorithms lies in subsequent
+operations that exploit \emph{interference}: unitary gates are designed so that
+amplitudes corresponding to desired outputs add constructively, while those
+corresponding to undesired outputs cancel destructively. The final measurement
+then yields the correct answer with high probability.
+
+This interplay of superposition, entanglement, and interference is the
+mathematical core of quantum speedups. Superposition provides exponential
+parallelism; entanglement enables correlations across qubits that have no
+classical equivalent; and interference channels the computation toward the
+correct outcome.
+
+
+\subsection{Measurement and the Born rule}
+\label{sec:measurement}
+
+While unitary evolution is deterministic, extracting information from a quantum
+system is inherently probabilistic. A \emph{projective measurement} in the
+computational basis is described by the set of projectors
+$\{\Pi_x = \ket{x}\bra{x}\}_{x\in\{0,1\}^n}$. Given a state
+$\ket{\Psi}=\sum_x c_x\ket{x}$, the \emph{Born rule} prescribes the outcome
+probabilities:
+\begin{equation}
+  \label{eq:born}
+  p(x) = |\braket{x}{\Psi}|^2 = |c_x|^2.
+\end{equation}
+Upon obtaining outcome $x$, the state collapses to $\ket{x}$, and any
+information encoded in the remaining amplitudes is irretrievably lost.
+
+This has a direct practical consequence: a single measurement of $n$ qubits
+yields only $n$ classical bits, despite the state containing $2^n$ amplitudes.
+To estimate a continuous quantity---such as an energy expectation value---the
+measurement must be repeated many times ($N_{\text{shots}}$ repetitions), and the
+result is subject to statistical uncertainty scaling as $1/\sqrt{N_{\text{shots}}}$.
+
+More generally, to measure an observable $O$ (a Hermitian operator), its
+expectation value in state $\ket{\Psi}$ is given by
+\begin{equation}
+  \label{eq:expectation}
+  \expval{O} = \bra{\Psi}O\ket{\Psi} = \sum_i \lambda_i\, p_i,
+\end{equation}
+where $\lambda_i$ are the eigenvalues of $O$ and $p_i$ the probability of
+obtaining the corresponding eigenstate. When $O$ is decomposed as a sum of Pauli
+operators, each Pauli term can be measured independently by rotating to the
+appropriate eigenbasis before measurement in the computational basis.
+
+
+\subsection{Density matrices and mixed states}
+\label{sec:density}
+
+The pure state formalism of \cref{eq:qubit} describes isolated, perfectly
+controlled quantum systems. Real quantum processors, however, interact with their
+environment, leading to \emph{decoherence} and \emph{mixed states} that require a
+more general description.
+
+The \emph{density matrix} (or density operator) of a pure state
+$\ket{\psi}$ is
+\begin{equation}
+  \label{eq:density_pure}
+  \rho = \ket{\psi}\bra{\psi}.
+\end{equation}
+A \emph{mixed state}---representing classical uncertainty about which pure state
+the system is in---is described by a convex combination
+\begin{equation}
+  \label{eq:density_mixed}
+  \rho = \sum_i p_i \ket{\psi_i}\bra{\psi_i},
+  \qquad p_i \geq 0,\quad \sum_i p_i = 1.
+\end{equation}
+The density matrix is Hermitian, positive semidefinite, and has unit trace. A
+state is pure if and only if $\mathrm{Tr}(\rho^2) = 1$; for mixed states,
+$\mathrm{Tr}(\rho^2) < 1$, quantifying the degree of decoherence.
+
+In the density matrix formalism, unitary evolution becomes
+$\rho \mapsto U\rho\, U^\dagger$, and expectation values are computed as
+$\expval{O}=\mathrm{Tr}(O\rho)$. Noise processes---such as the depolarizing
+channel relevant to this thesis---are described by completely positive
+trace-preserving (CPTP) maps on $\rho$. For example, the single-qubit
+depolarizing channel with error rate $p$ acts as
+\begin{equation}
+  \label{eq:depolarizing}
+  \mathcal{E}(\rho) = (1-p)\,\rho + \frac{p}{3}
+    \bigl(X\rho X + Y\rho Y + Z\rho Z\bigr),
+\end{equation}
+which with probability $p$ replaces the state with a random Pauli error.
+This formalism will be central to the analysis of noise effects in
+\cref{ch:introduction} and subsequent chapters.
+
+
+\subsection{Quantum simulation}
+\label{sec:qsim}
+
+Among the many proposed applications of quantum computing---including
+cryptanalysis, optimization, and machine learning---the simulation of quantum
+systems stands out as the most natural and arguably the most promising near-term
+application~\cite{feynman1982,preskill2018}. The reason is both conceptual and
+practical: a quantum computer \emph{is} a quantum system, so using it to simulate
+another quantum system leverages its native capabilities rather than working
+against them.
+
+The essential mapping is straightforward. A physical system with a
+$2^n$-dimensional Hilbert space is encoded on $n$ qubits. The system's
+Hamiltonian $H$ is decomposed into a sum of Pauli operators acting on these
+qubits:
+\begin{equation}
+  \label{eq:pauli_ham}
+  H = \sum_{i=1}^{M} c_i\, P_i,
+  \qquad P_i \in \{I,X,Y,Z\}^{\otimes n},
+\end{equation}
+where each $P_i$ is a tensor product of single-qubit Pauli matrices (a
+\emph{Pauli string}) and $c_i\in\mathbb{R}$ are real coefficients. This
+decomposition is always possible since the $4^n$ Pauli strings form a complete
+basis for $2^n\times 2^n$ Hermitian matrices.
+
+Ground state energies, excited state spectra, and dynamical properties can then
+be extracted using quantum algorithms that prepare and measure appropriate states
+on the quantum register. For the small systems considered in this thesis, the
+encoding requires only 2--3 qubits, but the same framework scales to larger
+systems where classical methods become intractable.
+
+Quantum simulation of atomic, molecular, and nuclear systems has seen rapid
+progress in recent years, with demonstrations ranging from small molecules to
+lattice gauge theories~\cite{peruzzo2014}. The quarkonium system studied in this
+thesis belongs to this broader programme, representing a step toward quantum
+simulation of QCD bound states.
+
+
 \subsection{The NISQ era}
+\label{sec:nisq}
 
 Current quantum hardware operates in the \emph{Noisy Intermediate-Scale Quantum}
 (NISQ) regime~\cite{preskill2018}, characterized by processors with tens to
-hundreds of qubits subject to gate errors on the order of $10^{-3}$--$10^{-2}$,
-limited qubit connectivity, and coherence times that restrict circuit depth.
-These constraints preclude the deep circuits required by fault-tolerant
-algorithms such as quantum phase estimation, motivating the development of
-shallow-depth methods tailored to near-term devices---chief among them the
-variational approach discussed in the next section.
+hundreds of qubits subject to significant imperfections:
+\begin{itemize}
+  \item \textbf{Gate errors} on the order of $10^{-3}$--$10^{-2}$ per operation,
+    described by noise channels such as the depolarizing channel of
+    \cref{eq:depolarizing};
+  \item \textbf{Limited connectivity} between qubits, requiring additional SWAP
+    gates that increase circuit depth;
+  \item \textbf{Short coherence times} that bound the number of operations
+    executable before decoherence degrades the quantum state.
+\end{itemize}
+These constraints preclude the deep circuits required by fault-tolerant algorithms
+such as quantum phase estimation, which need thousands of controlled operations
+and ancilla qubits for error correction.
+
+The NISQ era has therefore driven the development of algorithms specifically
+designed for shallow circuits and resilient to moderate noise levels. The most
+successful paradigm to date is the \emph{variational} approach, in which a
+quantum processor prepares parameterized trial states while a classical computer
+optimizes the parameters---a hybrid strategy discussed in the next section.
 
 
 % ──────────────────────────────────────────────────────────────────
