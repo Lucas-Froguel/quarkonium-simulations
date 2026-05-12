@@ -25,6 +25,8 @@ from quarksim.simulation import (
 )
 from quarksim.woloshyn.ansatz import build_ansatz
 from quarksim.woloshyn.hamiltonian import build_pauli_hamiltonian
+from quarksim.gallimore.ansatz_n4 import build_ucc4
+from quarksim.gallimore.hamiltonian_spin import build_jw_hamiltonian
 from quarksim.yihuoliufanzhang.circuit import (
     taylor_coefficients,
     build_trotter_step_circuit,
@@ -206,6 +208,140 @@ def run_vqe_noisy(channel: str, depolarizing_rate: float,
         metadata={"depolarizing_rate": depolarizing_rate,
                   "shots": cfg.vqe_shots, "parameters": result.parameters.tolist()},
     )
+
+
+# ---------------------------------------------------------------------------
+# VQE with Jordan-Wigner encoding (4-qubit UCC ansatz, spin-dependent N=4)
+# ---------------------------------------------------------------------------
+
+# Single-particle decimal indices in the 4-qubit Hilbert space, ordered to
+# match the rows of the original 4x4 channel matrix:
+#   row 0  -> |0001> (orbital 0 occupied)   -> dec 1
+#   row 1  -> |0010>                        -> dec 2
+#   row 2  -> |0100>                        -> dec 4
+#   row 3  -> |1000>                        -> dec 8
+_JW_SINGLE_PARTICLE_IDX = [1, 2, 4, 8]
+
+
+def _exact_jw_ground_state(channel: str):
+    """Return (gs_energy, gs_state_16d, all_eigs) for the JW Hamiltonian.
+
+    The 16-d ground state has support only on the single-particle sector
+    by construction.
+    """
+    ham_jw = build_jw_hamiltonian(channel)
+    eigenvalues, eigenvectors = exact_diagonalization(ham_jw)
+    # Filter to single-particle sector: ground state of the JW operator
+    # restricted to the four physical states.
+    sector = _JW_SINGLE_PARTICLE_IDX
+    h_sector = np.array(
+        [[ham_jw.to_matrix()[i, j] for j in sector] for i in sector]
+    ).real
+    sec_eigs, sec_vecs = np.linalg.eigh(h_sector)
+    full_gs = np.zeros(2 ** ham_jw.num_qubits, dtype=complex)
+    for k, idx in enumerate(sector):
+        full_gs[idx] = sec_vecs[k, 0]
+    return float(sec_eigs[0]), full_gs, [float(e) for e in sec_eigs]
+
+
+def _run_vqe_jw(channel: str, depolarizing_rate: float,
+                cfg: ExperimentConfig | None = None) -> MethodResult:
+    """VQE on the 4-qubit Jordan-Wigner Hamiltonian with UCC ansatz."""
+    cfg = cfg or ExperimentConfig()
+    ham = build_jw_hamiltonian(channel)
+    ansatz = build_ucc4()
+    gs_energy, gs_state, all_eigs = _exact_jw_ground_state(channel)
+
+    rng = np.random.default_rng(cfg.seed)
+    x0 = rng.uniform(0, np.pi, size=ansatz.num_parameters)
+
+    t0 = time.perf_counter()
+    result = _sim_run_vqe_noisy(
+        ham, ansatz, shots=cfg.vqe_shots, depolarizing_rate=depolarizing_rate,
+        x0=x0, method=cfg.vqe_method, maxiter=cfg.vqe_maxiter,
+    )
+    wall = time.perf_counter() - t0
+
+    fid = _compute_fidelity(result.wavefunction, gs_state)
+    return MethodResult(
+        method="VQE-JW", channel=channel, energy=result.energy,
+        exact_energy=gs_energy, error=result.energy - gs_energy,
+        convergence=result.convergence, wavefunction=result.wavefunction,
+        fidelity=fid, wall_time=wall,
+        metadata={"parameters": result.parameters.tolist(),
+                  "num_evaluations": result.num_evaluations,
+                  "shots": cfg.vqe_shots,
+                  "depolarizing_rate": depolarizing_rate,
+                  "exact_eigenvalues": all_eigs,
+                  "encoding": "jordan-wigner", "n_qubits": 4},
+    )
+
+
+def run_vqe_jw_ideal(channel: str, cfg: ExperimentConfig | None = None) -> MethodResult:
+    """Run VQE-JW (4 qubits, UCC ansatz) noiselessly."""
+    return _run_vqe_jw(channel, depolarizing_rate=0.0, cfg=cfg)
+
+
+def run_vqe_jw_noisy(channel: str, depolarizing_rate: float,
+                     cfg: ExperimentConfig | None = None) -> MethodResult:
+    """Run VQE-JW (4 qubits, UCC ansatz) with depolarizing noise."""
+    return _run_vqe_jw(channel, depolarizing_rate=depolarizing_rate, cfg=cfg)
+
+
+def run_vqe_jw_excited(
+    channel: str, n_states: int = 4, cfg: ExperimentConfig | None = None,
+) -> list[MethodResult]:
+    """VQE-JW ground + excited states via penalty (swap test for overlap)."""
+    from scipy.optimize import minimize
+
+    cfg = cfg or ExperimentConfig()
+    ham = build_jw_hamiltonian(channel)
+    ansatz = build_ucc4()
+    gs_energy, gs_state, all_eigs = _exact_jw_ground_state(channel)
+    backend = _make_backend(0.0)
+    shots = cfg.vqe_shots
+
+    rng = np.random.default_rng(cfg.seed)
+    results = []
+    found_states: list[np.ndarray] = []
+
+    for k in range(min(n_states, len(all_eigs))):
+        x0 = rng.uniform(0, np.pi, size=ansatz.num_parameters)
+        energies: list[float] = []
+
+        def cost_fn(params, _found=list(found_states)):
+            bound = ansatz.assign_parameters(params)
+            e = _estimate_energy_shot_based(bound, ham, backend, shots)
+            for phi in _found:
+                overlap_sq = _circuit_overlap_with_state(
+                    ansatz, params, phi, backend, shots
+                )
+                e += cfg.penalty_alpha * overlap_sq
+            energies.append(e)
+            return e
+
+        t0 = time.perf_counter()
+        opt_result = minimize(cost_fn, x0, method=cfg.vqe_method,
+                              options={"maxiter": cfg.vqe_maxiter})
+        wall = time.perf_counter() - t0
+
+        sv = np.array(Statevector(ansatz.assign_parameters(opt_result.x)))
+        actual_energy = _estimate_energy_shot_based(
+            ansatz.assign_parameters(opt_result.x), ham, backend, shots
+        )
+
+        found_states.append(sv)
+        fid = _compute_fidelity(sv, gs_state) if k == 0 else 0.0
+
+        results.append(MethodResult(
+            method="VQE-JW", channel=channel, energy=actual_energy,
+            exact_energy=all_eigs[k], error=actual_energy - all_eigs[k],
+            convergence=energies, wavefunction=sv, fidelity=fid, wall_time=wall,
+            metadata={"state_index": k, "parameters": opt_result.x.tolist(),
+                      "encoding": "jordan-wigner"},
+        ))
+
+    return results
 
 
 # ---------------------------------------------------------------------------

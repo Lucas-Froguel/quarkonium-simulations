@@ -11,9 +11,11 @@ from quarksim.comparison.config import ExperimentConfig
 from quarksim.comparison.methods import (
     MethodResult,
     run_vqe_ideal,
+    run_vqe_jw_ideal,
     run_vqite_ideal,
     run_ttite_ideal,
     run_vqe_excited as run_vqe_all_states,
+    run_vqe_jw_excited,
     run_vqite_all_excited as run_vqite_all_states,
 )
 from quarksim.results import SimulationRecord, save_record
@@ -49,11 +51,17 @@ def run_noiseless(channels: list[str], cfg: ExperimentConfig, output_dir: Path):
         all_results[ch] = {}
 
         # Ground state
-        print("\n  VQE (noiseless)...")
+        print("\n  VQE (direct encoding, 2 qubits, noiseless)...")
         vqe_res = run_vqe_ideal(ch, cfg)
         all_results[ch]["VQE"] = vqe_res
         print(f"    E = {vqe_res.energy:.6f} (exact: {vqe_res.exact_energy:.6f}, "
               f"error: {vqe_res.error:+.6f}, fidelity: {vqe_res.fidelity:.6f})")
+
+        print("  VQE-JW (Jordan-Wigner, 4 qubits, noiseless)...")
+        vqe_jw_res = run_vqe_jw_ideal(ch, cfg)
+        all_results[ch]["VQE-JW"] = vqe_jw_res
+        print(f"    E = {vqe_jw_res.energy:.6f} (exact: {vqe_jw_res.exact_energy:.6f}, "
+              f"error: {vqe_jw_res.error:+.6f}, fidelity: {vqe_jw_res.fidelity:.6f})")
 
         print("  VQITE (noiseless)...")
         vqite_res = run_vqite_ideal(ch, cfg)
@@ -67,8 +75,8 @@ def run_noiseless(channels: list[str], cfg: ExperimentConfig, output_dir: Path):
         print(f"    E = {ttite_res.energy:.6f} (exact: {ttite_res.exact_energy:.6f}, "
               f"error: {ttite_res.error:+.6f}, fidelity: {ttite_res.fidelity:.6f})")
 
-        # Excited states (VQE and VQITE)
-        print("\n  VQE excited states...")
+        # Excited states (VQE direct + VQE-JW)
+        print("\n  VQE (direct) excited states...")
         excited_results[ch] = {}
         vqe_exc = run_vqe_all_states(ch, n_states=4, cfg=cfg)
         excited_results[ch]["VQE"] = vqe_exc
@@ -77,9 +85,16 @@ def run_noiseless(channels: list[str], cfg: ExperimentConfig, output_dir: Path):
             print(f"    State {k}: E = {r.energy:.4f} (exact: {r.exact_energy:.4f}, "
                   f"error: {r.error:+.4f})")
 
-        # VQITE excited states skipped — too slow with circuit-based
-        # metric tensor (swap test overlaps for penalty term)
-        print("  VQITE excited states... (skipped — circuit overhead too high)")
+        print("  VQE-JW excited states...")
+        vqe_jw_exc = run_vqe_jw_excited(ch, n_states=4, cfg=cfg)
+        excited_results[ch]["VQE-JW"] = vqe_jw_exc
+        for r in vqe_jw_exc:
+            k = r.metadata.get("state_index", "?")
+            print(f"    State {k}: E = {r.energy:.4f} (exact: {r.exact_energy:.4f}, "
+                  f"error: {r.error:+.4f})")
+
+        # VQITE excited states skipped — left as future work
+        print("  VQITE excited states... (skipped — future work)")
 
     # Save results
     _save_noiseless_results(all_results, excited_results, output_dir)

@@ -7,10 +7,13 @@ import numpy as np
 from quarksim.comparison.config import ExperimentConfig
 from quarksim.comparison.methods import (
     run_vqe_noisy as _run_vqe_noisy_comparison,
+    run_vqe_jw_noisy,
     run_vqite_noisy,
     run_ttite_noisy,
     MethodResult,
 )
+
+_METHODS = ["VQE", "VQE-JW", "VQITE", "TTITE"]
 
 
 @dataclass
@@ -39,13 +42,13 @@ def run_noise_sweep(
 
     result = NoiseSweepResult(channel=channel, noise_levels=noise_levels)
 
-    for method_name in ["VQE", "VQITE", "TTITE"]:
+    for method_name in _METHODS:
         result.energies[method_name] = {}
         result.fidelities[method_name] = {}
 
     for rate in noise_levels:
         print(f"  Noise rate {rate:.3f}:")
-        for method_name in ["VQE", "VQITE", "TTITE"]:
+        for method_name in _METHODS:
             e_list: list[float] = []
             f_list: list[float] = []
 
@@ -63,6 +66,12 @@ def run_noise_sweep(
                             mr = run_vqe_ideal(channel, rep_cfg)
                         else:
                             mr = _run_vqe_noisy_comparison(channel, rate, rep_cfg)
+                    elif method_name == "VQE-JW":
+                        if rate == 0.0:
+                            from quarksim.comparison.methods import run_vqe_jw_ideal
+                            mr = run_vqe_jw_ideal(channel, rep_cfg)
+                        else:
+                            mr = run_vqe_jw_noisy(channel, rate, rep_cfg)
                     elif method_name == "VQITE":
                         if rate == 0.0:
                             from quarksim.comparison.methods import run_vqite_ideal

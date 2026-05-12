@@ -983,6 +983,39 @@
       \verb 10.26421/QIC12.11-12-1
       \endverb
     \endentry
+    \entry{froguel_quarksim}{online}{}{}
+      \name{author}{1}{}{%
+        {{hash=c86ad9099039249f35bcd108720e26ea}{%
+           family={Froguel},
+           familyi={F\bibinitperiod},
+           given={Lucas},
+           giveni={L\bibinitperiod}}}%
+      }
+      \strng{namehash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{fullhash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{fullhashraw}{c86ad9099039249f35bcd108720e26ea}
+      \strng{bibnamehash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{authorbibnamehash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{authornamehash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{authorfullhash}{c86ad9099039249f35bcd108720e26ea}
+      \strng{authorfullhashraw}{c86ad9099039249f35bcd108720e26ea}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{title}{{quarkonium-simulations}: Quantum-simulation codebase for spin-dependent charmonium spectroscopy}
+      \field{urlday}{12}
+      \field{urlmonth}{5}
+      \field{urlyear}{2026}
+      \field{year}{2026}
+      \field{urldateera}{ce}
+      \verb{urlraw}
+      \verb https://github.com/Lucas-Froguel/quarkonium-simulations
+      \endverb
+      \verb{url}
+      \verb https://github.com/Lucas-Froguel/quarkonium-simulations
+      \endverb
+    \endentry
   \enddatalist
 \endrefsection
 \endinput
