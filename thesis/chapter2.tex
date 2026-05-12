@@ -2,38 +2,39 @@
 \chapter{Mathematical Framework and Quantum Algorithms}
 \label{ch:framework}
 
-This chapter develops the mathematical machinery that the remainder of the
-thesis relies on. We begin in \cref{sec:hamiltonian} by constructing the
-charmonium Hamiltonian in a truncated harmonic-oscillator basis, treating the
-three channels of interest---${}^1S_0$, ${}^3S_1$, and ${}^1P_1$---on equal
-footing. \Cref{sec:encoding} then encodes the resulting matrix on a quantum
-register through two complementary schemes: a compact direct mapping and a
-Jordan--Wigner mapping of an underlying second-quantised representation. The
-three quantum algorithms used throughout this work are introduced in turn:
-the Variational Quantum Eigensolver (\cref{sec:vqe}), Variational
-Imaginary-Time Evolution (\cref{sec:vqite}), and the probabilistic
-Trotter--Taylor Imaginary-Time Evolution scheme (\cref{sec:ttite}). Beyond
-energy spectra, observable physical predictions also require transition
-amplitudes; \cref{sec:transitions} develops the quantum-circuit techniques for
-estimating M1 and E1 transitions between channels. We close
-(\cref{sec:framework-summary}) with a side-by-side comparison of the three
-algorithms.
+This chapter develops the mathematical machinery used by three quantum
+algorithms for charmonium spectroscopy that we reproduce in this thesis:
+the Variational Quantum Eigensolver of Gallimore and
+Liao~\cite{gallimore2023}, the Variational Imaginary-Time Evolution
+algorithm applied to charmonium by Woloshyn~\cite{woloshyn2023}, and the
+Trotter--Taylor Imaginary-Time Evolution scheme of Yi et
+al.~\cite{yi2025}. Each method takes a different approach to estimating
+the eigenvalues of a Hamiltonian matrix on a quantum processor, and each
+makes a different choice of qubit encoding for that matrix. We therefore
+organise the chapter so that the material common to the three methods is
+presented up front (\cref{sec:common}); each method then receives a
+dedicated section that develops it in self-contained form, including the
+specific encoding it uses, its ansatz (if any), its excited-state
+strategy, and any auxiliary topics treated by the source paper.
+The Gallimore--Liao section (\cref{sec:gallimore}) presents VQE together
+with the Jordan--Wigner encoding and an explicit extension of their
+construction to the spin-dependent $N=4$ case. The Woloshyn section
+(\cref{sec:woloshyn}) covers VQITE in the direct encoding and includes
+the M1 and E1 transition amplitudes that Woloshyn also derives. The
+Yi et al.\ section (\cref{sec:yi}) reproduces TTITE, applied to the same
+channel Hamiltonians used by the previous two methods. A side-by-side
+summary closes the chapter (\cref{sec:framework-summary}).
 
-We follow the treatments of Gallimore and Liao~\cite{gallimore2023},
-Woloshyn~\cite{woloshyn2023}, and Yi et al.~\cite{yi2025}, adapting each to a
-common setting: the spin-dependent charmonium spectrum represented in a
-four-state harmonic-oscillator basis.
 
 % ──────────────────────────────────────────────────────────────────
-\section{The Charmonium Hamiltonian}
-\label{sec:hamiltonian}
+\section{Common Framework}
+\label{sec:common}
 
-We begin by writing the charmonium Hamiltonian in a form amenable to numerical
-diagonalisation. The starting point is the non-relativistic quark model with
-a Cornell potential and a leading spin-dependent correction; the strategy is
-to expand the radial wavefunction in a finite harmonic-oscillator basis,
-producing a finite matrix whose lowest eigenvalues approximate the physical
-energy levels.
+Before introducing the three algorithms, we collect the material they all
+build on: the charmonium Hamiltonian in a finite harmonic-oscillator
+basis, the three $4\times 4$ channel matrices, and the general
+prescription for expressing a Hermitian matrix as a sum of Pauli strings
+on a quantum register.
 
 \subsection{The non-relativistic quark model}
 \label{ssec:quark_model}
@@ -207,8 +208,8 @@ $H^{(\ell,S)} \in \mathbb{R}^{N\times N}$ are guaranteed to be upper
 bounds on the corresponding exact eigenvalues, and they are monotonically
 non-increasing in $N$~\cite{macdonald1933}. Increasing $N$ therefore
 always improves the variational estimate; $N=4$ provides a useful balance
-between physical accuracy and the qubit cost of the encodings introduced
-in \cref{sec:encoding}.
+between physical accuracy and the qubit cost of the encodings used by the
+three methods that follow.
 \end{remark}
 
 \subsection{Matrix elements}
@@ -280,7 +281,7 @@ high precision via the \texttt{mpmath} library and verified against direct
 numerical quadrature.
 \end{remark}
 
-\subsection{The three Hamiltonian matrices}
+\subsection{The three channel Hamiltonian matrices}
 \label{ssec:matrices}
 
 Assembling \cref{eq:matrix_elements} channel by channel with the parameters
@@ -328,29 +329,16 @@ value $8.6034$ is used in \cref{eq:H_1P1}.
 
 Diagonalising each $H^{(\ell,S)}$ by classical means immediately yields the
 exact (within the truncated basis) energy spectrum of its channel. Doing so on
-a quantum computer, however, requires representing the operator as a sum of
-Pauli strings acting on a register of qubits, which is the topic of the next
-section.
-
-
-% ──────────────────────────────────────────────────────────────────
-\section{Encoding the Hamiltonian on Qubits}
-\label{sec:encoding}
-
-To run a quantum algorithm we must express the channel Hamiltonians
-\cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} in a form that the device can act on
-natively: a sum of tensor products of Pauli operators acting on a finite
-register of qubits. Two qualitatively different encoding choices appear in
-the literature for this kind of basis-expansion problem, and we will use
-both later in the thesis. This section derives them in parallel for the
-same underlying $4\times 4$ matrices, allowing a direct comparison of qubit
-count and Pauli structure.
+a quantum computer, however, requires expressing the operator as a sum of
+Pauli strings acting on a register of qubits.
 
 \subsection{Pauli decomposition of a Hermitian matrix}
 \label{ssec:pauli_decomp}
 
-Any Hermitian operator $H$ on $n$ qubits can be written as a real linear
-combination of the $4^{n}$ Pauli strings
+A common building block for all three algorithms is the expansion of the
+channel Hamiltonian in the basis of Pauli strings. Any Hermitian operator
+$H$ on $n$ qubits can be written as a real linear combination of the
+$4^{n}$ Pauli strings
 $\{P_k\} \subset \{I,X,Y,Z\}^{\otimes n}$,
 \begin{equation}
   \label{eq:pauli_sum}
@@ -369,67 +357,71 @@ be implemented as a basis rotation on the quantum register followed by a
 diagonal measurement, and the expectation value $\langle H\rangle$ recovered
 as the weighted sum $\sum_k c_k\langle P_k\rangle$. The remaining question
 is which qubit register to use---i.e., how to associate physical basis
-states with bit-strings. We discuss two natural choices.
+states with bit-strings. The three source papers make two different
+choices, and we present each choice within the section that uses it.
 
-\subsection{Direct (compact) encoding}
-\label{ssec:direct_encoding}
 
-The most economical scheme assigns one bit-string to each HO basis
-function via the binary expansion of its index,
+% ──────────────────────────────────────────────────────────────────
+\section{Gallimore \& Liao --- Variational Quantum Eigensolver}
+\label{sec:gallimore}
+
+Gallimore and Liao~\cite{gallimore2023} apply the Variational Quantum
+Eigensolver (VQE)~\cite{peruzzo2014,mcclean2016} to a spinless
+Cornell-potential charmonium Hamiltonian truncated to $N=3$
+harmonic-oscillator basis states. Their construction maps the
+second-quantised one-body operator to qubits via the Jordan--Wigner
+transformation---exposing the problem on a register of three qubits with
+a one-particle constraint---and uses a two-parameter Unitary Coupled
+Cluster ansatz tailored to that constraint. In this section we reproduce
+their development, pointing out the parts that generalise without
+modification to the spin-dependent $N=4$ matrices of \cref{sec:common}.
+We close (\cref{ssec:gallimore_extension}) with the explicit extension
+required to apply VQE on equal footing with the other two methods later
+in the thesis.
+
+\subsection{The variational principle}
+\label{ssec:vqe_principle}
+
+For any Hermitian Hamiltonian $H$ on a finite Hilbert space, every
+normalised state $\ket{\psi}$ obeys
 \begin{equation}
-  \label{eq:direct_map}
-  |n\rangle_{\mathrm{HO}}
-  \;\longmapsto\;
-  |\mathrm{bin}(n)\rangle_{\mathrm{qubit}},
-  \qquad n = 0,1,2,3.
+  \label{eq:rayleigh_ritz}
+  E_0 \;\leq\; \bra{\psi}H\ket{\psi},
 \end{equation}
-For $N=4$ this requires only $\lceil\log_2 N\rceil = 2$ qubits, and every
-computational-basis state of the register corresponds to a physical HO state.
-In particular,
+where $E_0$ is the smallest eigenvalue of $H$, with equality if and only if
+$\ket{\psi}$ lies in the corresponding eigenspace. Restricting the search to
+a family of \emph{trial states} $\{\ket{\psi(\bm{\theta})}\}$ parameterised by a
+classical vector $\bm{\theta}\in\mathbb{R}^{p}$ gives the upper bound
 \begin{equation}
-  |0\rangle \mapsto |00\rangle,\quad
-  |1\rangle \mapsto |01\rangle,\quad
-  |2\rangle \mapsto |10\rangle,\quad
-  |3\rangle \mapsto |11\rangle.
+  \label{eq:vqe_cost}
+  E_0 \;\leq\;
+  \min_{\bm{\theta}} \;
+  E(\bm{\theta}),
+  \qquad
+  E(\bm{\theta}) \equiv \bra{\psi(\bm{\theta})} H \ket{\psi(\bm{\theta})}.
 \end{equation}
-The channel Hamiltonian $H^{(\ell,S)}$ is then literally a $4\times 4$ matrix
-acting on this register, and its Pauli decomposition follows from
-\cref{eq:pauli_sum}. Applying that formula to the ${}^1S_0$ matrix of
-\cref{eq:H_1S0} yields, for example,
-\begin{equation}
-  \label{eq:direct_decomp_1S0}
-  H^{({}^1S_0)} =
-  c_{II}\,II + c_{IZ}\,IZ + c_{ZI}\,ZI + c_{ZZ}\,ZZ
-  + c_{IX}\,IX + c_{XI}\,XI + c_{ZX}\,ZX + c_{XZ}\,XZ
-  + c_{XX}\,XX + c_{YY}\,YY,
-\end{equation}
-i.e.\ ten Pauli terms, consistent with the absence of strings containing a
-single $Y$ for a real-symmetric operator. The numerical coefficients
-$\{c_k\}$ are obtained by trace formulas and are real.
+The VQE algorithm computes $E(\bm{\theta})$ on the quantum processor and
+minimises it on a classical computer; the resulting parameters
+$\bm{\theta}^{\star}$ characterise an approximation $\ket{\psi(\bm{\theta}^{\star})}$
+to the ground state. The accuracy of this approximation is controlled by
+the \emph{expressibility} of the ansatz: if the parameterised manifold
+$\{\ket{\psi(\bm{\theta})}\}$ contains the true ground state then the
+minimum of \cref{eq:vqe_cost} coincides with $E_0$; otherwise it provides
+a (variational) upper bound.
 
-\begin{example}[Identity coefficient]
-Setting $P_k = I\otimes I$ in \cref{eq:pauli_sum} gives the energy offset
-\[
-  c_{II} = \frac{1}{4}\Tr H^{({}^1S_0)}
-         = \frac{1}{4}(0.9431 + 3.3365 + 5.4382 + 7.3451) \approx 4.266,
-\]
-which simply records the trace of the channel matrix and contributes only a
-constant shift to the eigenvalues.
-\end{example}
+The remaining ingredients are (i) a qubit encoding of $H$, (ii) a choice
+of ansatz, (iii) a procedure for measuring $E(\bm{\theta})$ from circuit
+shots, and (iv) a classical optimiser for $\bm{\theta}$. The next four
+subsections cover them in turn.
 
-The direct encoding has two clear advantages: it uses the minimal number of
-qubits, and every computational-basis state is physical, so the variational
-ansatz need not respect any external constraint. Its main drawback is that
-the resulting Pauli strings carry no obvious physical interpretation---they
-are simply the coefficients of an abstract $4\times 4$ matrix.
-
-\subsection{Jordan--Wigner (occupation) encoding}
+\subsection{Jordan--Wigner encoding}
 \label{ssec:jw_encoding}
 
-The second encoding originates in quantum chemistry. We treat the HO basis
-functions as orbitals occupied by a single charm--anticharm pair and
-introduce a fermionic creation operator $a_n^{\dagger}$ for each orbital, with
-the canonical anticommutation relations
+The encoding chosen by Gallimore and Liao originates in quantum chemistry.
+We treat the HO basis functions as orbitals occupied by a single
+charm--anticharm pair and introduce a fermionic creation operator
+$a_n^{\dagger}$ for each orbital, with the canonical anticommutation
+relations
 \begin{equation}
   \label{eq:fermion_anticom}
   \{a_m, a_n^{\dagger}\} = \delta_{mn},
@@ -442,12 +434,12 @@ The channel Hamiltonian is then the second-quantised one-body operator
   \widehat{H}^{(\ell,S)} =
     \sum_{m,n=0}^{N-1} H_{mn}^{(\ell,S)}\;a_m^{\dagger} a_n,
 \end{equation}
-acting on the Fock space of $N=4$ orbitals; physical states are those
-containing exactly one excitation, i.e.\ the four states
-$\{a_n^{\dagger}|\mathrm{vac}\rangle\}_{n=0}^{3}$. Restricting to this
-single-particle sector reproduces the original $4\times 4$ matrix problem.
+acting on the Fock space of $N$ orbitals; physical states are those
+containing exactly one excitation, i.e.\ the $N$ states
+$\{a_n^{\dagger}|\mathrm{vac}\rangle\}_{n=0}^{N-1}$. Restricting to this
+single-particle sector reproduces the original $N\times N$ matrix problem.
 
-\paragraph{Jordan--Wigner transformation.}
+\paragraph{The Jordan--Wigner transformation.}
 The Jordan--Wigner (JW) transformation~\cite{nielsen2010} maps each orbital
 to a dedicated qubit and faithfully reproduces the fermionic algebra
 \cref{eq:fermion_anticom} in terms of Pauli operators,
@@ -461,9 +453,10 @@ to a dedicated qubit and faithfully reproduces the fermionic algebra
 \end{align}
 The trailing string of $Z$ operators on lower-indexed qubits encodes the
 fermionic sign that arises when a creation operator anticommutes past
-already-occupied orbitals. With this mapping, $N=4$ orbitals require $N=4$
-qubits, of which only $\binom{4}{1}=4$ computational-basis states are
-physical (namely $|0001\rangle,|0010\rangle,|0100\rangle,|1000\rangle$).
+already-occupied orbitals. With this mapping, $N$ orbitals require $N$
+qubits, of which only $\binom{N}{1}=N$ computational-basis states are
+physical (for $N=4$, these are
+$|0001\rangle,|0010\rangle,|0100\rangle,|1000\rangle$).
 
 \paragraph{Pauli forms of the one-body operators.}
 Substituting \cref{eq:jw_a_dagger,eq:jw_a} into the bilinears
@@ -490,214 +483,171 @@ while non-adjacent hops pick up the JW $Z$-string,
     &= \frac{1}{2}\bigl(X_n Z_{n+1} Z_{n+2} X_{n+3}
                        + Y_n Z_{n+1} Z_{n+2} Y_{n+3}\bigr).
 \end{align}
-Combining these expressions with the coefficients $H_{mn}^{(\ell,S)}$ from
-\cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} produces a Pauli-string decomposition of
+Combining these expressions with the coefficients $H_{mn}^{(\ell,S)}$
+from \cref{ssec:matrices} produces a Pauli-string decomposition of
 $\widehat{H}^{(\ell,S)}$.
 
-\paragraph{Term counting.}
-Collecting all distinct strings for $N=4$, the Jordan--Wigner Hamiltonian
-contains
-\begin{itemize}\setlength{\itemsep}{2pt}
-  \item one identity term (energy offset, from the diagonals through
-    $a_n^{\dagger} a_n$);
-  \item four single-qubit $Z$ terms (one per orbital, from the diagonals);
-  \item six pairs of $XX{+}YY$, $XZX{+}YZY$, or $XZZX{+}YZZY$ strings (one
-    pair per off-diagonal element of $H^{(\ell,S)}$).
-\end{itemize}
-The total is $1 + 4 + 12 = 17$ Pauli strings, compared with the ten of the
-direct encoding. The two extra orbitals---and the corresponding $Z$-string
-overhead in \cref{eq:jw_skip2}---are the price paid for the physically
-transparent occupation-number picture.
+\paragraph{The $N=4$ decomposition in full.}
+For $N=3$ orbitals (Gallimore and Liao's original setting) the diagonals
+contribute one identity and three single-$Z$ terms, the three off-diagonals
+contribute pairs of $XX{+}YY$ or $XZX{+}YZY$ strings, giving ten Pauli
+terms in total. For the $N=4$ extension used in this thesis, the same
+construction is carried out for the four orbitals on four qubits. Denoting
+the channel matrix elements $H_{mn} \equiv H_{mn}^{(\ell,S)}$ for brevity,
+and using the real symmetry $H_{mn}=H_{nm}$ to combine each off-diagonal
+pair $H_{mn}(a_m^{\dagger}a_n + a_n^{\dagger}a_m)$, the explicit Pauli
+expansion is
+\begin{align}
+\widehat{H}^{(\ell,S)}
+  &= \underbrace{\tfrac{1}{2}\bigl(H_{00}+H_{11}+H_{22}+H_{33}\bigr)\,I}_{\text{identity}}
+  \nonumber\\
+  &\quad
+  \underbrace{-\tfrac{1}{2}H_{00}\,Z_0
+    -\tfrac{1}{2}H_{11}\,Z_1
+    -\tfrac{1}{2}H_{22}\,Z_2
+    -\tfrac{1}{2}H_{33}\,Z_3}_{\text{4 diagonal }Z\text{ terms}}
+  \nonumber\\[2pt]
+  &\quad
+  \underbrace{+\tfrac{1}{2}H_{01}\bigl(X_0 X_1 + Y_0 Y_1\bigr)
+    +\tfrac{1}{2}H_{12}\bigl(X_1 X_2 + Y_1 Y_2\bigr)
+    +\tfrac{1}{2}H_{23}\bigl(X_2 X_3 + Y_2 Y_3\bigr)}_{\text{3 adjacent pairs}}
+  \nonumber\\[2pt]
+  &\quad
+  \underbrace{+\tfrac{1}{2}H_{02}\bigl(X_0 Z_1 X_2 + Y_0 Z_1 Y_2\bigr)
+    +\tfrac{1}{2}H_{13}\bigl(X_1 Z_2 X_3 + Y_1 Z_2 Y_3\bigr)}_{\text{2 skip-1 pairs}}
+  \nonumber\\[2pt]
+  &\quad
+  \underbrace{+\tfrac{1}{2}H_{03}\bigl(X_0 Z_1 Z_2 X_3
+                                       + Y_0 Z_1 Z_2 Y_3\bigr)}_{\text{1 skip-2 pair}}.
+  \label{eq:jw_N4_full}
+\end{align}
+Counting strings gives one identity, four single-$Z$ terms, three pairs of
+adjacent $XX{+}YY$ strings ($6$ strings), two pairs of skip-$1$
+$XZX{+}YZY$ strings ($4$ strings), and one pair of skip-$2$
+$XZZX{+}YZZY$ strings ($2$ strings), totalling
+$1 + 4 + 6 + 4 + 2 = 17$ Pauli operators acting on four qubits.
 
-\begin{remark}[Reduction to Gallimore's $N=3$ case]
-Gallimore and Liao~\cite{gallimore2023} applied the JW construction to a
-\emph{spin-independent} Cornell potential truncated to $N=3$ basis states,
-producing a $3\times 3$ Hamiltonian on $3$ qubits with $10$ Pauli terms.
-The construction above extends that procedure in two directions: we
-include the spin-dependent contact term of \cref{eq:hyperfine} and we use
-$N=4$ basis functions. Restricting to $N=3$ and $\langle V_s\rangle = 0$
-reproduces their decomposition exactly.
+\begin{remark}[Structure of the coefficients]
+Each Pauli string in \cref{eq:jw_N4_full} carries a coefficient that is
+either a single diagonal entry $H_{nn}$ (for the $Z_n$ terms) or a single
+off-diagonal entry $H_{mn}$ (for each member of a pair). Crucially, the
+\emph{operator structure} of the Pauli decomposition---which strings
+appear, and with what relative signs---is independent of which channel we
+work with: the channel-specific information enters only through the
+numerical coefficients. The same 17 Pauli strings of
+\cref{eq:jw_N4_full} therefore describe $\widehat{H}^{({}^1S_0)}$,
+$\widehat{H}^{({}^3S_1)}$, and $\widehat{H}^{({}^1P_1)}$, with the
+substitutions $H_{mn} \to H_{mn}^{({}^1S_0)}$, $H_{mn}^{({}^3S_1)}$, and
+$H_{mn}^{({}^1P_1)}$ from \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}.
 \end{remark}
 
-\subsection{Comparison of the two encodings}
-\label{ssec:encoding_compare}
-
-\begin{table}[htbp]
-\centering
-\caption{Comparison of the two encodings of the channel Hamiltonians of
-  \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} on a quantum register of qubits.}
-\label{tab:encoding_compare}
-\begin{tabular}{lcc}
-\toprule
-                 & Direct encoding              & Jordan--Wigner encoding \\
-\midrule
-Qubits           & $\lceil\log_2 N\rceil = 2$   & $N = 4$ \\
-Physical states  & all $2^{2}=4$                 & only $\binom{4}{1}=4$ out of $16$ \\
-Pauli terms      & $\sim 10$                     & $\sim 17$ \\
-Ansatz constraint& none                          & single-particle sector \\
-Physical picture & abstract                      & occupation of orbitals \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\Cref{tab:encoding_compare} summarises the trade-offs. The direct encoding
-is more compact in qubit count and avoids any subspace constraint on the
-variational ansatz, whereas the JW encoding offers a transparent connection
-to second-quantised many-body methods and a natural framework for symmetry
-preservation. Both encodings represent exactly the same physical Hamiltonian
-in a different basis; the eigenvalues of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}
-are therefore identical in either picture. In what follows we adopt the
-direct encoding as the default for compactness, switching to the JW
-encoding when explicitly comparing it with Gallimore and
-Liao~\cite{gallimore2023}.
-
-
-% ──────────────────────────────────────────────────────────────────
-\section{The Variational Quantum Eigensolver}
-\label{sec:vqe}
-
-With the Hamiltonian encoded as a Pauli sum, we now describe the simplest of
-the three algorithms used in this thesis: the Variational Quantum Eigensolver
-(VQE)~\cite{peruzzo2014,mcclean2016}. VQE is a direct application of the
-Rayleigh--Ritz principle in which the trial state is prepared by a
-parameterised quantum circuit and the energy is minimised by a classical
-optimiser. The role of the quantum computer is to evaluate the expectation
-value of an exponentially large Hamiltonian, a task that is in general
-intractable classically; the optimisation itself is performed in the much
-smaller classical parameter space.
-
-\subsection{The variational principle, in operator form}
-\label{ssec:vqe_principle}
-
-For any Hermitian Hamiltonian $H$ on a finite Hilbert space, every
-normalised state $\ket{\psi}$ obeys
-\begin{equation}
-  \label{eq:rayleigh_ritz}
-  E_0 \;\leq\; \bra{\psi}H\ket{\psi},
-\end{equation}
-where $E_0$ is the smallest eigenvalue of $H$, with equality if and only if
-$\ket{\psi}$ lies in the corresponding eigenspace. Restricting the search to
-a family of \emph{trial states} $\{\ket{\psi(\bm{\theta})}\}$ parameterised by a
-classical vector $\bm{\theta}\in\mathbb{R}^{p}$ gives the upper bound
-\begin{equation}
-  \label{eq:vqe_cost}
-  E_0 \;\leq\;
-  \min_{\bm{\theta}} \;
-  E(\bm{\theta}),
-  \qquad
-  E(\bm{\theta}) \equiv \bra{\psi(\bm{\theta})} H \ket{\psi(\bm{\theta})}.
-\end{equation}
-The VQE algorithm computes $E(\bm{\theta})$ on the quantum processor and
-minimises it on a classical computer; the resulting parameters
-$\bm{\theta}^{\star}$ characterise an approximation $\ket{\psi(\bm{\theta}^{\star})}$
-to the ground state.
-
-The accuracy of this approximation is controlled by the
-\emph{expressibility} of the ansatz: if the parameterised manifold
-$\{\ket{\psi(\bm{\theta})}\}$ contains the true ground state then the minimum of
-\cref{eq:vqe_cost} coincides with $E_0$; otherwise it provides a (variational)
-upper bound. Two ansatz constructions are particularly natural for the
-encodings of \cref{sec:encoding}.
-
-\subsection{Ansatz for the direct encoding}
-\label{ssec:woloshyn_ansatz}
-
-For the two-qubit direct encoding of \cref{ssec:direct_encoding}, a state of
-the form
-\begin{equation}
-  \label{eq:real_4state}
-  \ket{\psi} = c_0\ket{00} + c_1\ket{01} + c_2\ket{10} + c_3\ket{11},
-  \qquad c_n\in\mathbb{R},\;\sum_n c_n^{2} = 1,
-\end{equation}
-has three independent real degrees of freedom (four amplitudes minus the
-normalisation). Because the channel Hamiltonians of
-\cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} are real and symmetric, their eigenstates
-can be chosen real, and a three-parameter circuit producing the most general
-real state of the form \cref{eq:real_4state} is therefore
-expressible enough. Such a circuit, due to
-Woloshyn~\cite{woloshyn2023}, applies two single-qubit $R_y$ rotations, a
-CNOT, and a third $R_y$:
-\begin{equation}
-  \label{eq:direct_ansatz_op}
-  U(\bm{\theta}) =
-  \bigl[I \otimes R_y(\theta_2)\bigr]\,\mathrm{CNOT}_{0\to1}\,
-  \bigl[R_y(\theta_1) \otimes R_y(\theta_0)\bigr],
-\end{equation}
-with $\bm{\theta} = (\theta_0,\theta_1,\theta_2)$. The corresponding circuit
-is shown in \cref{fig:woloshyn_ansatz}.
-
-\begin{figure}[htbp]
-\centering
-\begin{quantikz}
-  \lstick{$\ket{0}$} & \gate{R_y(\theta_0)} & \ctrl{1} & \qw                 & \qw \\
-  \lstick{$\ket{0}$} & \gate{R_y(\theta_1)} & \targ{}  & \gate{R_y(\theta_2)} & \qw
-\end{quantikz}
-\caption{Three-parameter ansatz used with the direct encoding. The two
-  initial $R_y$ rotations create an arbitrary product state, the CNOT
-  entangles the qubits, and the final $R_y$ provides the third independent
-  degree of freedom required to reach a general real four-amplitude state.}
-\label{fig:woloshyn_ansatz}
-\end{figure}
-
-Acting on $\ket{00}$, this circuit yields amplitudes
-\begin{equation}
-  \label{eq:direct_ansatz_state}
-  \ket{\psi(\bm{\theta})} =
-  \begin{pmatrix}
-    c_0(c_1 c_2 - s_1 s_2)\\
-    s_0(s_1 c_2 - c_1 s_2)\\
-    c_0(c_1 s_2 + s_1 c_2)\\
-    s_0(s_1 s_2 + c_1 c_2)
-  \end{pmatrix},
-  \qquad
-  c_n = \cos(\theta_n/2),\; s_n = \sin(\theta_n/2),
-\end{equation}
-which can be verified to cover the unit sphere in $\mathbb{R}^{4}$ as
-$\bm{\theta}$ ranges over a domain of size $4\pi^{3}$, modulo redundancies.
-
-\subsection{Ansatz for the Jordan--Wigner encoding}
+\subsection{Unitary Coupled Cluster ansatz}
 \label{ssec:ucc_ansatz}
 
-For the four-qubit Jordan--Wigner encoding of \cref{ssec:jw_encoding} the
-trial state must remain within the single-particle sector. A natural
-construction starts from the reference state $\ket{0001}$ (one excitation in
-the lowest orbital) and applies a unitary built from particle-conserving
-operators. Extending the Unitary Coupled Cluster (UCC) ansatz of Gallimore
-and Liao~\cite{gallimore2023} from $N=3$ to $N=4$ basis states, we define
+Within the single-particle sector, the trial state must remain
+particle-number-conserving. Gallimore and Liao construct an ansatz from
+that constraint by exponentiating particle-conserving generators. Starting
+from the reference state $\ket{0\cdots 01}$ (one excitation in the lowest
+orbital), the Unitary Coupled Cluster (UCC) operator is
 \begin{equation}
   \label{eq:ucc_operator}
-  U_{\mathrm{UCC}}(\theta_1,\theta_2,\theta_3) =
+  U_{\mathrm{UCC}}(\theta_1,\ldots,\theta_{N-1}) =
   \exp\!\left\{
-    \sum_{k=1}^{3}\theta_k\,(a_k^{\dagger}a_0 - a_0^{\dagger}a_k)
+    \sum_{k=1}^{N-1}\theta_k\,(a_k^{\dagger}a_0 - a_0^{\dagger}a_k)
   \right\}.
 \end{equation}
 Each generator $a_k^{\dagger}a_0 - a_0^{\dagger}a_k$ is anti-Hermitian and
 preserves particle number, so $U_{\mathrm{UCC}}$ is unitary and maps
-single-particle states to single-particle states. With three independent
-parameters the operator generates the most general real superposition in the
-single-particle sector,
+single-particle states to single-particle states. With $N-1$ independent
+parameters the operator generates the most general real superposition in
+the single-particle sector,
 \begin{equation}
   \label{eq:ucc_state}
-  \ket{\psi(\alpha,\beta,\gamma)} =
-    \cos\alpha\,\ket{0001}
-    + \sin\alpha\cos\beta\,\ket{0010}
-    + \sin\alpha\sin\beta\cos\gamma\,\ket{0100}
-    + \sin\alpha\sin\beta\sin\gamma\,\ket{1000},
+  \ket{\psi(\bm{\theta})} =
+    \cos\theta_{N-1}\,\ket{0\cdots 01}
+    + \sin\theta_{N-1}\cos\theta_{N-2}\,\ket{0\cdots 010}
+    + \cdots
+    + \sin\theta_{N-1}\cdots\sin\theta_1\,\ket{10\cdots 0},
 \end{equation}
-which is simply the $\mathbb{S}^{3}$ spherical parameterisation lifted into
-the single-particle sector. The trigonometric reparameterisation
-$(\theta_1,\theta_2,\theta_3) \mapsto (\alpha,\beta,\gamma)$ is closed-form
-but rarely needed in practice; the circuit is built directly from
-\cref{eq:ucc_operator} using a sequence of Givens rotations between
-adjacent orbitals~\cite{gallimore2023}. Compared with the direct-encoding
-ansatz of \cref{fig:woloshyn_ansatz}, the UCC ansatz uses four qubits and a
-deeper circuit, but it has the conceptual advantage of representing physical
-particle hopping between HO orbitals.
+i.e.\ the $\mathbb{S}^{N-1}$ spherical parameterisation lifted into the
+single-particle sector. For $N=3$ this is the two-parameter ansatz of
+Gallimore and Liao~\cite{gallimore2023}; for $N=4$ it provides three
+parameters and exhausts the real single-particle subspace.
 
-\subsection{Measuring the energy on a quantum processor}
+\paragraph{Circuit implementation via Givens rotations.}
+A natural circuit-level realisation of \cref{eq:ucc_state} uses a chain of
+\emph{Givens rotations} between adjacent orbitals. Within the
+single-particle subspace of two adjacent qubits ($j$, $j+1$), a Givens
+rotation is the orthogonal $2\times 2$ rotation acting on the basis
+$\{\ket{01},\ket{10}\}$:
+\begin{equation}
+  \label{eq:givens_def}
+  G_{j,j+1}(\theta):\quad
+  \begin{cases}
+    \ket{00} \mapsto \ket{00},\\
+    \ket{01} \mapsto \cos\theta\,\ket{01} + \sin\theta\,\ket{10},\\
+    \ket{10} \mapsto -\sin\theta\,\ket{01} + \cos\theta\,\ket{10},\\
+    \ket{11} \mapsto \ket{11},
+  \end{cases}
+\end{equation}
+which is precisely the exponential
+$\exp\bigl\{\theta\,(a_{j+1}^{\dagger}a_j - a_j^{\dagger}a_{j+1})\bigr\}$
+restricted to the two qubits in question. A standard hardware decomposition
+in terms of one- and two-qubit native gates is
+\begin{equation}
+  \label{eq:givens_decomp}
+  G_{j,j+1}(\theta) =
+    \mathrm{CNOT}_{j+1\to j}\;
+    \bigl(R_y(2\theta)\bigr)_{j+1}^{\mathrm{ctrl}\,j}\;
+    \mathrm{CNOT}_{j+1\to j},
+\end{equation}
+i.e.\ two CNOTs and one controlled-$R_y$, giving the Givens block constant
+depth.
+
+Acting on the reference state $\ket{0\cdots 01}$ (qubit $0$ occupied, all
+others empty) with a chain of Givens rotations between adjacent qubits
+produces the spherical-coordinate expansion of \cref{eq:ucc_state}
+directly:
+\begin{equation*}
+  \ket{0\cdots 01}
+  \;\xrightarrow{G_{0,1}(\theta_{N-1})}\;
+  \cdots
+  \;\xrightarrow{G_{N-2,N-1}(\theta_1)}\;
+  \ket{\psi(\bm{\theta})},
+\end{equation*}
+with each rotation transferring the particle one orbital further from the
+reference. The resulting circuit for $N=4$ is shown in
+\cref{fig:ucc_ansatz}; its depth is $N-1$ Givens blocks, growing linearly
+in the basis size.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}
+  \lstick{$\ket{0}_0$} & \gate{X} & \gate[2]{G(\theta_3)} & \qw                   & \qw                   & \qw \\
+  \lstick{$\ket{0}_1$} & \qw      &                       & \gate[2]{G(\theta_2)} & \qw                   & \qw \\
+  \lstick{$\ket{0}_2$} & \qw      & \qw                   &                       & \gate[2]{G(\theta_1)} & \qw \\
+  \lstick{$\ket{0}_3$} & \qw      & \qw                   & \qw                   &                       & \qw
+\end{quantikz}
+\caption{Three-parameter UCC ansatz for the $N=4$ Jordan--Wigner encoding.
+  An $X$ gate prepares the reference state $\ket{0001}$ from
+  $\ket{0000}$; three Givens rotations
+  $G_{j,j+1}(\theta_{N-1-j})$, each decomposed into two CNOTs and a
+  controlled-$R_y$ via \cref{eq:givens_decomp}, propagate the single
+  excitation through the chain and generate the spherical superposition
+  of \cref{eq:ucc_state}. Particle number is exactly conserved by
+  construction.}
+\label{fig:ucc_ansatz}
+\end{figure}
+
+The circuit has $1$ single-qubit $X$ gate, $3$ controlled-$R_y$ gates, and
+$6$ CNOTs in total---comparable in depth to the Woloshyn ansatz of
+\cref{fig:woloshyn_ansatz} despite using twice as many qubits, because the
+single-particle constraint sharply restricts the relevant subspace.
+
+\subsection{Energy measurement on a quantum processor}
 \label{ssec:vqe_measurement}
 
-Given an ansatz $\ket{\psi(\bm{\theta})}$ and the Pauli decomposition
+Given the ansatz $\ket{\psi(\bm{\theta})}$ and the Pauli decomposition
 $H = \sum_k c_k P_k$ from \cref{eq:pauli_sum}, the energy estimator is
 linear in the Pauli expectation values,
 \begin{equation}
@@ -725,8 +675,8 @@ final measurement.
 
 \begin{remark}[Shot noise]
 With a finite number $N_{\mathrm{shots}}$ of repetitions per circuit, the
-estimator \cref{eq:vqe_energy_estimator} fluctuates around its true value with a
-statistical uncertainty
+estimator \cref{eq:vqe_energy_estimator} fluctuates around its true value
+with a statistical uncertainty
 \(
   \sigma_{\widehat{E}}
   = \sqrt{\sum_k c_k^{2}\,\sigma_{P_k}^{2} / N_{\mathrm{shots}}},
@@ -748,20 +698,19 @@ available:
     require evaluations of $\widehat{E}$ and are robust to moderate
     statistical noise. They typically converge in tens to a few hundreds of
     iterations for low-dimensional parameter spaces.
-  \item \textbf{Gradient-based methods}, which require partial derivatives of
-    $\widehat{E}$ at the cost of additional circuit evaluations. The
-    \emph{parameter-shift rule} (\cref{sec:vqite}) provides exact analytic
-    gradients for rotation gates, but each gradient component doubles the
-    number of circuits.
+  \item \textbf{Gradient-based methods}, which require partial derivatives
+    of $\widehat{E}$ at the cost of additional circuit evaluations. The
+    \emph{parameter-shift rule} (\cref{ssec:parameter_shift} below)
+    provides exact analytic gradients for rotation gates, but each gradient
+    component doubles the number of circuits.
 \end{itemize}
 
-For the few-parameter ansatze of
-\cref{ssec:woloshyn_ansatz,ssec:ucc_ansatz} we use COBYLA throughout, which
-balances simplicity, noise tolerance, and convergence speed.
-\Cref{fig:vqe_loop_recap} recalls the resulting hybrid loop already
-introduced in \cref{ch:introduction}: the classical optimiser proposes a
-parameter update, the quantum processor evaluates
-$\widehat{E}(\bm{\theta})$, and the cycle repeats until convergence.
+Gallimore and Liao use COBYLA, which balances simplicity, noise tolerance,
+and convergence speed for low-parameter ansatze. \Cref{fig:vqe_loop_recap}
+recalls the resulting hybrid loop already introduced in
+\cref{ch:introduction}: the classical optimiser proposes a parameter update,
+the quantum processor evaluates $\widehat{E}(\bm{\theta})$, and the cycle
+repeats until convergence.
 
 \begin{figure}[htbp]
 \centering
@@ -790,10 +739,10 @@ $\widehat{E}(\bm{\theta})$, and the cycle repeats until convergence.
         xshift=-0.25cm] {Classical};
 \end{tikzpicture}
 \caption{The VQE hybrid loop specialised to charmonium spectroscopy.
-  The quantum processor prepares the ansatz of
-  \cref{fig:woloshyn_ansatz} or its UCC counterpart, measures the Pauli
-  expectation values in \cref{eq:vqe_energy_estimator}, and returns the energy
-  estimate to a classical optimiser.}
+  The quantum processor prepares the UCC ansatz of \cref{eq:ucc_state},
+  measures the Pauli expectation values in
+  \cref{eq:vqe_energy_estimator}, and returns the energy estimate to a
+  classical optimiser.}
 \label{fig:vqe_loop_recap}
 \end{figure}
 
@@ -801,8 +750,8 @@ $\widehat{E}(\bm{\theta})$, and the cycle repeats until convergence.
 \label{ssec:vqe_excited}
 
 VQE in the form above targets only the ground state. To reach excited
-levels, we constrain the trial state to be orthogonal to the previously
-obtained eigenstates. Suppose that the ground state
+levels, Gallimore and Liao constrain the trial state to be orthogonal to
+the previously obtained eigenstates. Suppose the ground state
 $\ket{\psi_0(\bm{\theta}_0^{\star})}$ has been determined; the first excited
 state is then obtained by minimising
 \begin{equation}
@@ -810,13 +759,11 @@ state is then obtained by minimising
   E_1 = \min_{\bm{\theta}\,:\,\bra{\psi_0}\psi(\bm{\theta})\rangle = 0}\;
         \bra{\psi(\bm{\theta})} H \ket{\psi(\bm{\theta})}.
 \end{equation}
-For the two-qubit direct ansatz this constrained optimisation is
+For the two-parameter UCC ansatz at $N=3$ this constrained optimisation is
 one-dimensional: the orthogonal complement of $\ket{\psi_0}$ inside the
 ansatz manifold is parameterised by a single angle $\gamma$, and the
-optimisation reduces to a one-dimensional scan. Gallimore and
-Liao~\cite{gallimore2023} provide an explicit parametrisation for $N=3$
-which generalises straightforwardly to $N=4$: the orthogonal trial state
-takes the form
+optimisation reduces to a one-dimensional scan~\cite{gallimore2023}. The
+orthogonal trial state takes the form
 \begin{equation}
   \label{eq:orthogonal_state}
   \ket{\psi_1(\gamma)} =
@@ -824,9 +771,9 @@ takes the form
     + \sin\gamma\,\ket{\psi_0^{\perp,b}},
 \end{equation}
 where $\ket{\psi_0^{\perp,a}}, \ket{\psi_0^{\perp,b}}$ are two fixed states
-orthogonal to $\ket{\psi_0}$ that span the rest of the real ansatz manifold.
-Iterating the procedure, each new excited state is constrained to be
-orthogonal to all previously obtained states.
+orthogonal to $\ket{\psi_0}$ that span the rest of the real ansatz
+manifold. Iterating the procedure, each new excited state is constrained
+to be orthogonal to all previously obtained states.
 
 \begin{remark}[Error propagation]
 A useful property of the orthogonalisation method is that errors in the
@@ -837,30 +784,62 @@ $|E_1^{\mathrm{VQE}} - E_1| \leq \delta_0$~\cite{gallimore2023}, so the
 accuracy does not deteriorate as we move up the spectrum.
 \end{remark}
 
-The orthogonalisation approach exemplifies a recurring theme of variational
-methods: complex spectral information is obtained by repeatedly solving a
-sequence of constrained low-dimensional optimisation problems, each
-implemented as a small quantum circuit plus a classical optimiser. The next
-section presents a complementary strategy in which the same parameterised
-ansatz is evolved in imaginary time rather than directly optimised.
+\subsection{Extension to the spin-dependent N=4 case}
+\label{ssec:gallimore_extension}
+
+The Gallimore--Liao construction was originally applied to a
+\emph{spin-independent} Cornell potential truncated to $N=3$, producing a
+$3\times 3$ Hamiltonian, a JW Hamiltonian on three qubits, and a
+two-parameter UCC ansatz. In this thesis we want to compare VQE with
+VQITE (\cref{sec:woloshyn}) and TTITE (\cref{sec:yi}) on the same physical
+system---the spin-dependent ${}^1S_0$, ${}^3S_1$, ${}^1P_1$ matrices of
+\cref{ssec:matrices}. The Gallimore--Liao construction extends in two
+respects to make this possible.
+
+\begin{itemize}\setlength{\itemsep}{3pt}
+  \item \textbf{Spin dependence.} The Pauli-string structure of
+    \cref{eq:second_quantised} is unchanged when the Hamiltonian matrix
+    carries an extra term from the contact interaction
+    \cref{eq:hyperfine}: the matrix elements
+    $H_{mn}^{(\ell,S)}$ themselves shift between channels, but the
+    second-quantised expression and the resulting JW Pauli decomposition
+    are formally identical. The spin enters only through the choice of
+    coefficients.
+  \item \textbf{Basis size.} Moving from $N=3$ to $N=4$ adds one more
+    orbital, hence one more qubit and one more UCC parameter.
+    \Cref{eq:jw_skip2} contributes the new long-range hops, yielding the
+    full 17-term Pauli expansion of \cref{eq:jw_N4_full}. The UCC operator
+    gains a third generator $a_3^{\dagger}a_0 - a_0^{\dagger}a_3$ and a
+    third parameter, producing the three-parameter form of
+    \cref{eq:ucc_state}.
+\end{itemize}
+
+The resulting four-qubit VQE algorithm is a faithful extension of
+Gallimore and Liao's procedure; we are not introducing new ingredients,
+only enlarging the basis and admitting the spin-dependent coefficients
+already present in the underlying matrix. With this extension in place,
+VQE can be applied to exactly the same $4\times 4$ matrices used by VQITE
+and TTITE in the next two sections, enabling the apples-to-apples
+comparison reported in the next chapter.
 
 
 % ──────────────────────────────────────────────────────────────────
-\section{Variational Imaginary-Time Evolution}
-\label{sec:vqite}
+\section{Woloshyn --- Variational Imaginary-Time Evolution}
+\label{sec:woloshyn}
 
-VQE locates the ground state by directly minimising the Rayleigh quotient.
-An alternative strategy is to simulate the (non-unitary) imaginary-time
-Schr\"{o}dinger equation, whose long-time limit projects any initial state
-with non-vanishing ground-state overlap onto the ground state itself.
-Implementing this evolution exactly is incompatible with the unitarity of
-quantum circuits; the variational imaginary-time evolution (VQITE) algorithm
-of McArdle et al.~\cite{mcardle2019} and Yuan et al.~\cite{yuan2019}
-circumvents this by representing the evolved state with the same kind of
-parameterised circuit used in VQE and deriving classical equations of motion
-for the parameters from a variational principle. The result is a sequence of
-small linear systems---each constructed from quantities that the quantum
-processor can estimate---that drive the ansatz toward the ground state.
+Woloshyn~\cite{woloshyn2023} simulates the same spin-dependent charmonium
+system studied in this thesis---the ${}^1S_0$, ${}^3S_1$, and ${}^1P_1$
+channel matrices of \cref{ssec:matrices}---using the Variational
+Imaginary-Time Evolution (VQITE) algorithm of McArdle et
+al.~\cite{mcardle2019} and Yuan et al.~\cite{yuan2019}. Unlike VQE,
+VQITE locates the ground state by tracking the (non-unitary)
+imaginary-time Schr\"{o}dinger equation through a parameterised ansatz
+manifold, deriving classical equations of motion from a variational
+principle. Woloshyn uses the compact direct mapping for the qubit
+encoding---two qubits for four basis states---together with a
+three-parameter $R_y$-based ansatz, and also computes the M1 and E1
+radiative transition amplitudes between channels. We reproduce all of
+this material below.
 
 \subsection{Imaginary-time evolution as a ground-state projector}
 \label{ssec:ite}
@@ -891,10 +870,10 @@ Factoring out the ground-state contribution and renormalising,
   \;\xrightarrow[\tau\to\infty]{}\;
   \frac{a_0}{|a_0|}\,\ket{E_0},
 \end{equation}
-provided $a_0 = \bra{E_0}\psi(0)\rangle \neq 0$. The excited-state amplitudes
-are exponentially suppressed at a rate set by the gap $E_k - E_0$, so the
-algorithm reaches the ground state in a number of imaginary-time steps
-proportional to $1/(E_1 - E_0)$.
+provided $a_0 = \bra{E_0}\psi(0)\rangle \neq 0$. The excited-state
+amplitudes are exponentially suppressed at a rate set by the gap $E_k -
+E_0$, so the algorithm reaches the ground state in a number of
+imaginary-time steps proportional to $1/(E_1 - E_0)$.
 
 To preserve the norm dynamically, it is convenient to subtract the
 instantaneous energy,
@@ -909,25 +888,139 @@ preserves the norm of $\ket{\psi}$ and has the same long-$\tau$ limit as
 \cref{eq:ite_eq}, but is more convenient to discretise variationally.
 
 \begin{remark}[Non-unitarity]
-The operator $e^{-H\tau}$ is Hermitian and positive definite, but it is not
-unitary: $\bigl(e^{-H\tau}\bigr)^{\dagger}\,e^{-H\tau} = e^{-2H\tau}\neq I$.
-Quantum circuits, by contrast, are unitary by construction. Implementing
-\cref{eq:ite_normalised} on a quantum processor therefore requires an
-indirect strategy; VQITE projects the exact non-unitary dynamics onto a
-unitary parameterised submanifold, while \cref{sec:ttite} will encode it
-probabilistically using ancillas.
+The operator $e^{-H\tau}$ is Hermitian and positive definite, but it is
+not unitary: $\bigl(e^{-H\tau}\bigr)^{\dagger}\,e^{-H\tau} = e^{-2H\tau}
+\neq I$. Quantum circuits, by contrast, are unitary by construction.
+Implementing \cref{eq:ite_normalised} on a quantum processor therefore
+requires an indirect strategy; VQITE projects the exact non-unitary
+dynamics onto a unitary parameterised submanifold, while \cref{sec:yi}
+will encode it probabilistically using ancillas.
 \end{remark}
+
+\subsection{Direct (compact) encoding}
+\label{ssec:direct_encoding}
+
+Woloshyn adopts the most economical qubit encoding compatible with the
+$N=4$ basis: each HO basis function is assigned to one computational-basis
+state of a two-qubit register via the binary expansion of its index,
+\begin{equation}
+  \label{eq:direct_map}
+  |n\rangle_{\mathrm{HO}}
+  \;\longmapsto\;
+  |\mathrm{bin}(n)\rangle_{\mathrm{qubit}},
+  \qquad n = 0,1,2,3.
+\end{equation}
+Explicitly,
+\begin{equation}
+  |0\rangle \mapsto |00\rangle,\quad
+  |1\rangle \mapsto |01\rangle,\quad
+  |2\rangle \mapsto |10\rangle,\quad
+  |3\rangle \mapsto |11\rangle.
+\end{equation}
+For $N=4$ this requires only $\lceil\log_2 N\rceil = 2$ qubits, and every
+computational-basis state of the register corresponds to a physical HO
+state---there are no spurious states and no symmetry constraint on the
+ansatz.
+
+The channel Hamiltonian $H^{(\ell,S)}$ is then literally a $4\times 4$
+matrix acting on this register, and its Pauli decomposition follows
+directly from \cref{eq:pauli_sum}. Applying that formula to the ${}^1S_0$
+matrix of \cref{eq:H_1S0} yields, for example,
+\begin{equation}
+  \label{eq:direct_decomp_1S0}
+  H^{({}^1S_0)} =
+  c_{II}\,II + c_{IZ}\,IZ + c_{ZI}\,ZI + c_{ZZ}\,ZZ
+  + c_{IX}\,IX + c_{XI}\,XI + c_{ZX}\,ZX + c_{XZ}\,XZ
+  + c_{XX}\,XX + c_{YY}\,YY,
+\end{equation}
+i.e.\ ten Pauli terms, consistent with the absence of strings containing
+an odd number of $Y$ factors for a real-symmetric operator. The numerical
+coefficients $\{c_k\}$ are obtained by the trace formula of
+\cref{eq:pauli_sum} and are real.
+
+\begin{example}[Identity coefficient]
+Setting $P_k = I\otimes I$ in \cref{eq:pauli_sum} gives the energy offset
+\[
+  c_{II} = \frac{1}{4}\Tr H^{({}^1S_0)}
+         = \frac{1}{4}(0.9431 + 3.3365 + 5.4382 + 7.3451) \approx 4.266,
+\]
+which simply records the trace of the channel matrix and contributes only
+a constant shift to the eigenvalues.
+\end{example}
+
+The direct encoding has two clear advantages over the JW encoding of
+\cref{ssec:jw_encoding}: it uses the minimal number of qubits, and every
+computational-basis state is physical, so the variational ansatz need not
+respect any external constraint. Its main drawback is that the resulting
+Pauli strings carry no obvious physical interpretation---they are simply
+the coefficients of an abstract $4\times 4$ matrix.
+
+\subsection{Three-parameter variational ansatz}
+\label{ssec:woloshyn_ansatz}
+
+For the two-qubit direct encoding, a state of the form
+\begin{equation}
+  \label{eq:real_4state}
+  \ket{\psi} = c_0\ket{00} + c_1\ket{01} + c_2\ket{10} + c_3\ket{11},
+  \qquad c_n\in\mathbb{R},\;\sum_n c_n^{2} = 1,
+\end{equation}
+has three independent real degrees of freedom (four amplitudes minus the
+normalisation). Because the channel Hamiltonians of
+\cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} are real and symmetric, their
+eigenstates can be chosen real, and a three-parameter circuit producing
+the most general real state of the form \cref{eq:real_4state} is
+therefore expressible enough. Woloshyn's circuit applies two single-qubit
+$R_y$ rotations, a CNOT, and a third $R_y$:
+\begin{equation}
+  \label{eq:direct_ansatz_op}
+  U(\bm{\theta}) =
+  \bigl[I \otimes R_y(\theta_2)\bigr]\,\mathrm{CNOT}_{0\to1}\,
+  \bigl[R_y(\theta_1) \otimes R_y(\theta_0)\bigr],
+\end{equation}
+with $\bm{\theta} = (\theta_0,\theta_1,\theta_2)$. The corresponding
+circuit is shown in \cref{fig:woloshyn_ansatz}.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}
+  \lstick{$\ket{0}$} & \gate{R_y(\theta_0)} & \ctrl{1} & \qw                 & \qw \\
+  \lstick{$\ket{0}$} & \gate{R_y(\theta_1)} & \targ{}  & \gate{R_y(\theta_2)} & \qw
+\end{quantikz}
+\caption{Three-parameter ansatz used with the direct encoding. The two
+  initial $R_y$ rotations create an arbitrary product state, the CNOT
+  entangles the qubits, and the final $R_y$ provides the third independent
+  degree of freedom required to reach a general real four-amplitude
+  state.}
+\label{fig:woloshyn_ansatz}
+\end{figure}
+
+Acting on $\ket{00}$, this circuit yields amplitudes
+\begin{equation}
+  \label{eq:direct_ansatz_state}
+  \ket{\psi(\bm{\theta})} =
+  \begin{pmatrix}
+    c_0(c_1 c_2 - s_1 s_2)\\
+    s_0(s_1 c_2 - c_1 s_2)\\
+    c_0(c_1 s_2 + s_1 c_2)\\
+    s_0(s_1 s_2 + c_1 c_2)
+  \end{pmatrix},
+  \qquad
+  c_n = \cos(\theta_n/2),\; s_n = \sin(\theta_n/2),
+\end{equation}
+which can be verified to cover the unit sphere in $\mathbb{R}^{4}$ as
+$\bm{\theta}$ ranges over a domain of size $4\pi^{3}$, modulo redundancies.
 
 \subsection{The McLachlan variational principle}
 \label{ssec:mclachlan}
 
 VQITE replaces the exact evolution \cref{eq:ite_normalised} by a
-\emph{parameterised} trajectory $\ket{\psi(\bm{\theta}(\tau))}$ on the same
-ansatz manifold used by VQE. The parameters $\bm{\theta}(\tau)$ are evolved so
-that the parameterised state tracks the exact one as closely as possible. We
-adopt the principle of McLachlan~\cite{mclachlan1964}, which minimises at
-each instant the distance between the actual time-derivative of the trial
-state and the right-hand side of \cref{eq:ite_normalised}:
+\emph{parameterised} trajectory $\ket{\psi(\bm{\theta}(\tau))}$ on the
+ansatz manifold of \cref{ssec:woloshyn_ansatz}. The parameters
+$\bm{\theta}(\tau)$ are evolved so that the parameterised state tracks
+the exact one as closely as possible. We adopt the principle of
+McLachlan~\cite{mclachlan1964}, which minimises at each instant the
+distance between the actual time-derivative of the trial state and the
+right-hand side of \cref{eq:ite_normalised}:
 \begin{equation}
   \label{eq:mclachlan}
   \delta_{\dot{\bm{\theta}}}\,
@@ -935,12 +1028,9 @@ state and the right-hand side of \cref{eq:ite_normalised}:
         + (H - E_\tau)\ket{\psi(\bm{\theta}(\tau))} \bigr\|^{2} = 0.
 \end{equation}
 Here the variation is taken with respect to the time derivative
-$\dot{\bm{\theta}} \equiv \mathrm{d}\bm{\theta}/\mathrm{d}\tau$, treated as an
-independent vector. Expanding $\partial_\tau\ket{\psi(\bm{\theta}(\tau))} =
-\sum_i \dot{\theta}_i\,\ket{\partial_i\psi}$, where
-$\ket{\partial_i\psi} \equiv \partial\ket{\psi(\bm{\theta})}/\partial\theta_i$,
-\cref{eq:mclachlan} becomes a quadratic form in $\dot{\bm{\theta}}$. Carrying
-out the variation gives the linear system
+$\dot{\bm{\theta}} \equiv \mathrm{d}\bm{\theta}/\mathrm{d}\tau$, treated
+as an independent real vector. The variation reduces, in five short
+steps, to the linear system
 \begin{equation}
   \label{eq:mclachlan_linsys}
   \sum_j A_{ij}\,\dot{\theta}_j = C_i,
@@ -957,9 +1047,110 @@ with matrix and vector elements
   C_i &= -\Re\bigl[\bra{\partial_i\psi} H \ket{\psi}\bigr]
        + \Re\bigl[\braket{\partial_i\psi}{\psi}\bigr]\,E_\tau.
 \end{align}
-For ansatz circuits that preserve the global phase of $\ket{\psi}$ (which is
-the case for the constructions of \cref{ssec:woloshyn_ansatz,ssec:ucc_ansatz})
-the second term in $C_i$ vanishes and $C_i$ reduces to a real-valued energy
+We work through the derivation in detail since the same building blocks
+will reappear when we discuss the metric tensor and the parameter-shift
+rule below.
+
+\paragraph{Step 1 --- expand the time derivative.}
+The ansatz state depends on $\tau$ only through the parameters, so by
+the chain rule
+\begin{equation}
+  \label{eq:dtau_psi}
+  \partial_\tau\ket{\psi(\bm{\theta}(\tau))}
+  = \sum_i \dot{\theta}_i\,\ket{\partial_i\psi},
+  \qquad
+  \ket{\partial_i\psi} \equiv \frac{\partial\ket{\psi(\bm{\theta})}}
+                                   {\partial\theta_i}.
+\end{equation}
+
+\paragraph{Step 2 --- write the residual vector.}
+Denote $K \equiv H - E_\tau$ for brevity. The vector inside the norm in
+\cref{eq:mclachlan} is
+\begin{equation}
+  \label{eq:residual}
+  \ket{R} \;=\; \sum_i \dot{\theta}_i\,\ket{\partial_i\psi}
+                + K\,\ket{\psi}.
+\end{equation}
+
+\paragraph{Step 3 --- compute its squared norm.}
+Expanding $\braket{R}{R}$,
+\begin{equation*}
+  \|R\|^{2} =
+    \sum_{i,j}\dot{\theta}_i\dot{\theta}_j\,
+       \braket{\partial_i\psi}{\partial_j\psi}
+    + \sum_i \dot{\theta}_i\,\bra{\partial_i\psi}K\ket{\psi}
+    + \sum_j \dot{\theta}_j\,\bra{\psi}K\ket{\partial_j\psi}
+    + \bra{\psi}K^{2}\ket{\psi}.
+\end{equation*}
+The two middle sums are complex conjugates of each other (since $K$ is
+Hermitian and $\dot{\theta}_i\in\mathbb{R}$); they combine into a single
+real part. In the first sum the antisymmetric imaginary part of
+$\braket{\partial_i\psi}{\partial_j\psi}$ vanishes against the symmetric
+$\dot{\theta}_i\dot{\theta}_j$, leaving only the real part. Hence
+\begin{equation}
+  \label{eq:residual_norm}
+  \|R\|^{2} =
+    \sum_{i,j}\dot{\theta}_i\dot{\theta}_j\,
+      \Re\braket{\partial_i\psi}{\partial_j\psi}
+    + 2\sum_i \dot{\theta}_i\,
+      \Re\bra{\partial_i\psi}K\ket{\psi}
+    + \|K\ket{\psi}\|^{2}.
+\end{equation}
+
+\paragraph{Step 4 --- vary with respect to $\dot{\theta}_k$.}
+The final term in \cref{eq:residual_norm} is independent of
+$\dot{\bm{\theta}}$. Differentiating the remainder with respect to
+$\dot{\theta}_k$ and setting the derivative to zero,
+\begin{equation}
+  \label{eq:mclachlan_variation}
+  \frac{\partial\|R\|^{2}}{\partial\dot{\theta}_k}
+  = 2\sum_j \Re\braket{\partial_k\psi}{\partial_j\psi}\,\dot{\theta}_j
+    + 2\,\Re\bra{\partial_k\psi}K\ket{\psi}
+  \;=\; 0,
+\end{equation}
+which is already linear in $\dot{\bm{\theta}}$, matching the structure
+of \cref{eq:mclachlan_linsys} with the \emph{bare} entries
+\begin{align}
+  A^{(0)}_{kj} &= \Re\braket{\partial_k\psi}{\partial_j\psi},
+  \label{eq:A_bare}\\
+  C_k &= -\Re\bra{\partial_k\psi}K\ket{\psi}
+       = -\Re\bra{\partial_k\psi}H\ket{\psi}
+         + E_\tau\,\Re\braket{\partial_k\psi}{\psi}.
+  \label{eq:C_from_K}
+\end{align}
+The right-hand side of \cref{eq:C_from_K} is precisely
+\cref{eq:mclachlan_C}, so the vector $C_i$ is recovered at this step
+already.
+
+\paragraph{Step 5 --- project to the Fubini--Study form.}
+The bare metric \cref{eq:A_bare} misses one subtlety: the parameterised
+state has a redundant global-phase degree of freedom---$\ket{\psi(\bm{\theta})}$
+and $e^{i\phi(\bm{\theta})}\ket{\psi(\bm{\theta})}$ represent the same
+physical state, but their tangent vectors differ by an arbitrary
+multiple of $\ket{\psi}$. To remove this gauge redundancy we project the
+tangent vectors orthogonal to $\ket{\psi}$,
+\begin{equation}
+  \label{eq:proj_tangent}
+  \ket{\partial_i\psi}_{\perp}
+  \;\equiv\;
+  \bigl(\,I - \ket{\psi}\bra{\psi}\,\bigr)\,\ket{\partial_i\psi}
+  = \ket{\partial_i\psi} - \ket{\psi}\,\braket{\psi}{\partial_i\psi},
+\end{equation}
+and use $\ket{\partial_i\psi}_{\perp}$ in place of
+$\ket{\partial_i\psi}$ throughout. A direct computation using
+$\braket{\psi}{\psi}=1$ gives
+\begin{equation*}
+  \braket{\partial_i\psi|_{\perp}}{\partial_j\psi|_{\perp}}
+  = \braket{\partial_i\psi}{\partial_j\psi}
+   - \braket{\partial_i\psi}{\psi}\,\braket{\psi}{\partial_j\psi},
+\end{equation*}
+whose real part is exactly \cref{eq:mclachlan_A}. The same projection
+on $\ket{\partial_k\psi}$ in $C_k$ leaves it unchanged, because
+$\bra{\psi}K\ket{\psi} = E_\tau - E_\tau = 0$ already; only $A$ acquires
+the correction.
+For ansatz circuits that preserve the global phase of $\ket{\psi}$ (which
+is the case for the construction of \cref{ssec:woloshyn_ansatz}) the
+second term in $C_i$ vanishes and $C_i$ reduces to a real-valued energy
 gradient,
 \begin{equation}
   \label{eq:mclachlan_C_simplified}
@@ -988,8 +1179,8 @@ Expanding around $\bm{\theta}' = \bm{\theta}$ to second order yields
   = 1 - \sum_{ij} A_{ij}\,\delta_i\delta_j + O(\delta^{3}),
 \end{equation}
 so that the metric coincides with the leading curvature of the fidelity
-landscape. This identification is the basis of the
-standard finite-difference estimator: from \cref{eq:fidelity_curvature},
+landscape. This identification is the basis of the standard
+finite-difference estimator: from \cref{eq:fidelity_curvature},
 \begin{equation}
   \label{eq:metric_fd}
   A_{ij} \approx -\frac{1}{4\varepsilon^{2}}\,
@@ -1000,23 +1191,24 @@ standard finite-difference estimator: from \cref{eq:fidelity_curvature},
     + f(\bm{\theta} - \varepsilon e_i - \varepsilon e_j)
   \bigr],
 \end{equation}
-with $e_i$ the unit vector in the $i$-direction. Each of the four fidelities
-is the absolute square of an overlap between two ansatz states, which can be
-estimated on a quantum processor either by the swap test or by the
-$\ket{\psi_2}^{\dagger}\ket{\psi_1}$ inverse-ansatz protocol described in
-\cref{sec:transitions}. For the $p = 3$ ansatze used here, the symmetric
-metric requires $p(p+1)/2 = 6$ independent entries, each costing four
-overlap measurements at a small step $\varepsilon \sim 10^{-3}$--$10^{-4}$.
+with $e_i$ the unit vector in the $i$-direction. Each of the four
+fidelities is the absolute square of an overlap between two ansatz
+states, which can be estimated on a quantum processor either by the swap
+test or by the inverse-ansatz protocol described later in
+\cref{ssec:transitions}. For the three-parameter ansatz used here, the
+symmetric metric requires $p(p+1)/2 = 6$ independent entries, each
+costing four overlap measurements at a small step
+$\varepsilon \sim 10^{-3}$--$10^{-4}$.
 
-\subsection{The energy gradient and the parameter-shift rule}
+\subsection{Energy gradient and the parameter-shift rule}
 \label{ssec:parameter_shift}
 
-The vector $C_i$ in \cref{eq:mclachlan_C_simplified} is a derivative of an
-expectation value with respect to a circuit parameter. For ansatze
+The vector $C_i$ in \cref{eq:mclachlan_C_simplified} is a derivative of
+an expectation value with respect to a circuit parameter. For ansatze
 composed of single-qubit rotations of the form
-$R_\mu(\theta) = e^{-i\theta\,\mu/2}$ with
-$\mu \in \{X,Y,Z\}$, such derivatives admit a remarkable closed-form
-expression---the \emph{parameter-shift rule}~\cite{mitarai2018,schuld2019}:
+$R_\mu(\theta) = e^{-i\theta\,\mu/2}$ with $\mu \in \{X,Y,Z\}$, such
+derivatives admit a remarkable closed-form expression---the
+\emph{parameter-shift rule}~\cite{mitarai2018,schuld2019}:
 \begin{equation}
   \label{eq:param_shift}
   \frac{\partial \langle H\rangle_{\bm{\theta}}}{\partial\theta_i}
@@ -1027,19 +1219,19 @@ expression---the \emph{parameter-shift rule}~\cite{mitarai2018,schuld2019}:
   \Bigr].
 \end{equation}
 The remarkable feature of \cref{eq:param_shift} is that it is
-\emph{exact}---unlike a finite-difference derivative, the formula returns the
-true partial derivative regardless of the step size. The proof, which we
-sketch here, illustrates the special role played by Pauli rotations.
+\emph{exact}---unlike a finite-difference derivative, the formula returns
+the true partial derivative regardless of the step size. The proof, which
+we sketch here, illustrates the special role played by Pauli rotations.
 
 \begin{remark}[Sketch of the parameter-shift derivation]
 Consider a circuit where the parameter $\theta_i$ appears only inside a
 rotation $R_\mu(\theta_i) = e^{-i\theta_i \mu/2}$. Since $\mu^{2}=I$, we
 have $R_\mu(\theta_i) = \cos(\theta_i/2)\,I - i\sin(\theta_i/2)\,\mu$, so
 the dependence of $R_\mu$---and hence of
-$\ket{\psi(\bm{\theta})}$---on $\theta_i$ is restricted to the linear span of
-$\{1,\cos\theta_i,\sin\theta_i\}$. Therefore the expectation value
-$\langle H\rangle_{\bm{\theta}}$ is a real-valued trigonometric polynomial of
-period $2\pi$ in $\theta_i$, of the form
+$\ket{\psi(\bm{\theta})}$---on $\theta_i$ is restricted to the linear
+span of $\{1,\cos\theta_i,\sin\theta_i\}$. Therefore the expectation
+value $\langle H\rangle_{\bm{\theta}}$ is a real-valued trigonometric
+polynomial of period $2\pi$ in $\theta_i$, of the form
 \(
   a\cos\theta_i + b\sin\theta_i + c.
 \)
@@ -1048,12 +1240,12 @@ $b\cos\theta_i - a\sin\theta_i$, which is exactly the derivative of
 $a\cos\theta_i + b\sin\theta_i + c$, completes the proof.
 \end{remark}
 
-The practical implication is that, for ansatz circuits built from Pauli
-rotations, all partial derivatives required by VQITE---i.e.\ each
-component of $C$---can be evaluated on the quantum processor at a cost of
-two additional energy estimations per parameter. For the three-parameter
-ansatze used in this work, the cost is just six extra circuit evaluations
-per imaginary-time step.
+The practical implication is that, for the $R_y$-based ansatz of
+\cref{eq:direct_ansatz_op}, all partial derivatives required by
+VQITE---i.e.\ each component of $C$---can be evaluated on the quantum
+processor at a cost of two additional energy estimations per parameter.
+For the three-parameter ansatz used here, the cost is just six extra
+circuit evaluations per imaginary-time step.
 
 \subsection{Time stepping and regularisation}
 \label{ssec:vqite_stepping}
@@ -1064,18 +1256,18 @@ gives the equation of motion for $\bm{\theta}$:
   \label{eq:vqite_eom}
   \dot{\bm{\theta}} = A^{-1}\,C.
 \end{equation}
-Discretising with the forward Euler scheme yields a simple update rule for
-the parameter vector after a small imaginary-time step $\Delta\tau$,
+Discretising with the forward Euler scheme yields a simple update rule
+for the parameter vector after a small imaginary-time step $\Delta\tau$,
 \begin{equation}
   \label{eq:vqite_update}
   \bm{\theta}(\tau + \Delta\tau)
   = \bm{\theta}(\tau)
   + \Delta\tau\,A^{-1}(\bm{\theta})\,C(\bm{\theta}).
 \end{equation}
-Two practical issues arise. First, when two parameters become approximately
-degenerate (e.g., when the ansatz fails to be locally injective), the
-metric $A$ becomes ill-conditioned. We add a small Tikhonov regulariser to
-restore numerical stability,
+Two practical issues arise. First, when two parameters become
+approximately degenerate (e.g., when the ansatz fails to be locally
+injective), the metric $A$ becomes ill-conditioned. We add a small
+Tikhonov regulariser to restore numerical stability,
 \begin{equation}
   \label{eq:vqite_tikhonov}
   (A + \lambda I)\,\dot{\bm{\theta}} = C,
@@ -1114,31 +1306,31 @@ Hamiltonians of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}.
   \node[font=\footnotesize\itshape, below=0.1cm of upd, anchor=north west,
         xshift=-0.15cm] {Classical};
 \end{tikzpicture}
-\caption{The VQITE hybrid loop. At each step the quantum processor estimates
-  the metric tensor $A$ via \cref{eq:metric_fd} and the energy gradient
-  components of $C$ via the parameter-shift rule \cref{eq:param_shift}; the
-  classical computer solves the linear system \cref{eq:vqite_tikhonov} and
-  advances the parameters in imaginary time.}
+\caption{The VQITE hybrid loop. At each step the quantum processor
+  estimates the metric tensor $A$ via \cref{eq:metric_fd} and the energy
+  gradient components of $C$ via the parameter-shift rule
+  \cref{eq:param_shift}; the classical computer solves the linear system
+  \cref{eq:vqite_tikhonov} and advances the parameters in imaginary time.}
 \label{fig:vqite_loop}
 \end{figure}
 
 \subsection{Excited states by penalisation}
 \label{ssec:vqite_excited}
 
-VQITE projects onto the lowest-energy state with non-vanishing overlap with
-the initial state. To target higher levels we modify the effective
+VQITE projects onto the lowest-energy state with non-vanishing overlap
+with the initial state. To target higher levels we modify the effective
 Hamiltonian by adding penalty terms that suppress overlap with previously
-obtained states. Concretely, if $\{\ket{\psi_k^{\star}}\}_{k=0}^{n-1}$ are
-already-computed eigenstates, we replace $H$ by
+obtained states. Concretely, if $\{\ket{\psi_k^{\star}}\}_{k=0}^{n-1}$
+are already-computed eigenstates, we replace $H$ by
 \begin{equation}
   \label{eq:penalised_H}
   H_{\mathrm{eff}}
   = H + \alpha\sum_{k=0}^{n-1} \ket{\psi_k^{\star}}\bra{\psi_k^{\star}},
 \end{equation}
-where $\alpha$ is a positive penalty large enough to shift the energies of
-the already-found states above the next eigenvalue. Running VQITE with
-$H_{\mathrm{eff}}$ then converges to the next-higher eigenstate. The energy
-gradient generalises to
+where $\alpha$ is a positive penalty large enough to shift the energies
+of the already-found states above the next eigenvalue. Running VQITE
+with $H_{\mathrm{eff}}$ then converges to the next-higher eigenstate.
+The energy gradient generalises to
 \begin{equation}
   \label{eq:penalised_grad}
   \frac{\partial \langle H_{\mathrm{eff}}\rangle}{\partial\theta_i}
@@ -1147,41 +1339,219 @@ gradient generalises to
                             \bra{\partial_i\psi}\psi_k^{\star}\rangle\bigr],
 \end{equation}
 where the overlap correction is again accessible from short fidelity
-circuits. In practice $\alpha$ is chosen of the same order of magnitude as
-the typical gap between adjacent eigenvalues; we use $\alpha = 10$ in
+circuits. In practice $\alpha$ is chosen of the same order of magnitude
+as the typical gap between adjacent eigenvalues; we use $\alpha = 10$ in
 inverse-femtometre units throughout this thesis.
 
 The combination of VQITE for the ground state with iterated penalisation
 provides access to a sequence of eigenpairs without ever requiring the
 diagonalisation of an exponentially large matrix on a classical computer.
-The cost is a sequence of linear systems of size at most $p = 3$, an
-imaginary-time integration with $O(50)$ steps per state, and a number of
-small overlap circuits scaling polynomially with the number of states
-targeted.
+
+\subsection{Transition amplitudes}
+\label{ssec:transitions}
+
+Woloshyn's analysis goes beyond eigenvalues: it also computes radiative
+transition amplitudes between channels, which are the physical
+observables ultimately compared with experiment. We reproduce the two
+relevant cases below.
+
+\paragraph{Physical motivation.}
+In the multipole expansion of the electromagnetic interaction of a
+quark--antiquark system, the leading single-photon transitions are
+classified by their selection rules~\cite{brambilla2011}:
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item \emph{M1 transitions} flip the total spin without changing the
+    orbital angular momentum ($\Delta S = 1$, $\Delta L = 0$). In the
+    non-relativistic limit the amplitude reduces to a wavefunction
+    overlap between the two spin partners, scaled by a numerical
+    prefactor.
+  \item \emph{E1 transitions} change the orbital angular momentum by one
+    unit without altering the spin ($\Delta S = 0$, $\Delta L = 1$). The
+    amplitude is proportional to the radial matrix element of the
+    position operator, $\bra{\psi_f}r\ket{\psi_i}$.
+\end{itemize}
+The two paradigmatic examples for charmonium are
+$J/\psi \to \eta_c\,\gamma$ (M1) and $h_c \to \eta_c\,\gamma$ (E1).
+Computing their amplitudes therefore amounts to evaluating, respectively,
+the overlap $\braket{\psi_f^{({}^1S_0)}}{\psi_i^{({}^3S_1)}}$ and the
+matrix element $\bra{\psi_f^{({}^1S_0)}}r\ket{\psi_i^{({}^1P_1)}}$, where
+the states are the eigenvectors produced by VQITE (or by any of the
+other two algorithms).
+
+\paragraph{M1 amplitudes: state overlaps.}
+In the non-relativistic limit, the M1 transition amplitude between two
+states differing only in spin reduces to an overlap of their spatial
+wavefunctions,
+\begin{equation}
+  \label{eq:m1_amplitude}
+  |\mathcal{M}_{\mathrm{M1}}|^{2} \;\propto\;
+  \bigl|\braket{\psi_f^{\mathrm{spatial}}}{\psi_i^{\mathrm{spatial}}}\bigr|^{2}.
+\end{equation}
+The two states are eigenvectors of different channel Hamiltonians
+(${}^1S_0$ and ${}^3S_1$) but live in the same HO basis, so their
+overlap is well-defined as a four-dimensional inner product of real
+coefficient vectors. Two complementary quantum-circuit techniques are
+used in Woloshyn's analysis.
+
+\textit{Inverse-ansatz protocol.}
+If the two ansatz unitaries $U_i = U(\bm{\theta}_i^{\star})$ and
+$U_f = U(\bm{\theta}_f^{\star})$ have been determined---e.g., as the output
+of two VQITE runs---then the overlap can be read off from the all-zero
+outcome of the circuit $U_f^{\dagger} U_i\ket{0}^{\otimes n}$. Indeed,
+\begin{equation}
+  \label{eq:inverse_ansatz}
+  \mathrm{Prob}\bigl(\text{all zeros}\bigr) =
+    \bigl|\bra{0}^{\otimes n}\,U_f^{\dagger} U_i\,\ket{0}^{\otimes n}\bigr|^{2}
+  = \bigl|\braket{\psi_f}{\psi_i}\bigr|^{2}.
+\end{equation}
+This protocol requires no additional qubits, only an inverse-ansatz
+sub-circuit, and is the most economical method available when both
+ansatz unitaries can be efficiently implemented.
+
+\textit{Swap test.}
+A more general protocol, applicable when $\ket{\psi_i}$ and
+$\ket{\psi_f}$ are prepared independently on two copies of the work
+register, is the swap test~\cite{nielsen2010}. Adding one ancilla
+initialised in $\ket{0}$, the circuit shown in \cref{fig:swap_test}
+yields an ancilla-zero probability
+\(
+  \mathrm{Prob}(0_{\mathrm{anc}})
+   = \tfrac{1}{2}\bigl(1 + |\braket{\psi_f}{\psi_i}|^{2}\bigr),
+\)
+from which the overlap squared is recovered as
+$2\,\mathrm{Prob}(0_{\mathrm{anc}}) - 1$. The swap test is more demanding
+in qubits ($2n + 1$ total) and gates ($n$ controlled-SWAPs), but does
+not require explicit knowledge of either ansatz unitary, only the
+ability to prepare both states on demand.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}[column sep=10pt]
+  \lstick{$\ket{0}_{\mathrm{anc}}$} & \gate{H} & \ctrl{1}  & \gate{H} & \meter{} \\
+  \lstick{$\ket{\psi_i}$}           & \qw      & \swap{1}  & \qw      & \qw \\
+  \lstick{$\ket{\psi_f}$}           & \qw      & \targX{}  & \qw      & \qw
+\end{quantikz}
+\caption{Swap test for the absolute overlap between two ansatz states
+  $\ket{\psi_i}$ and $\ket{\psi_f}$. The Hadamard--CSWAP--Hadamard
+  sandwich interferes the swapped and unswapped configurations of the
+  work registers; the ancilla-zero probability is
+  $(1 + |\braket{\psi_f}{\psi_i}|^{2})/2$. The CSWAP gate acts as a
+  controlled exchange of the two work registers.}
+\label{fig:swap_test}
+\end{figure}
+
+\paragraph{E1 amplitudes: matrix elements of the radial operator.}
+For E1 transitions the relevant matrix element is the radial dipole
+amplitude $\bra{\psi_f}r\ket{\psi_i}$, where $\ket{\psi_i}$ and
+$\ket{\psi_f}$ are eigenstates of the initial- and final-state
+channels. In the HO basis the radial operator is an $N\times N$ matrix
+$R_{mk} = \bra{\phi_{m\,\ell_f}} r \ket{\phi_{k\,\ell_i}}$ which, like
+the Hamiltonian, can be evaluated in closed form. Using the same
+techniques that produced \cref{eq:linear_matrix}, one obtains, for the
+$P\to S$ case ($\ell_i = 1, \ell_f = 0$) and $N = 4$, the explicit
+matrix~\cite{woloshyn2023}
+\begin{equation}
+  \label{eq:r_matrix}
+  R \;=\;
+  \begin{pmatrix}
+    0.5775 & -0.4715 & 0      & 0      \\
+    0      &  0.8821 & -0.6668 & 0     \\
+    0      &  0      &  0.8821 & -0.8167\\
+    0      &  0      &  0      &  1.0002
+  \end{pmatrix}
+  \quad \text{(units of fm)}.
+\end{equation}
+The amplitude is then
+\begin{equation}
+  \label{eq:e1_amplitude}
+  \bra{\psi_f}r\ket{\psi_i} = \mathbf{c}_f^{\!\top} R\,\mathbf{c}_i,
+\end{equation}
+where $\mathbf{c}_i$ and $\mathbf{c}_f$ are the real coefficient vectors
+of $\ket{\psi_i}$ and $\ket{\psi_f}$ in the HO basis.
+
+\begin{remark}[Errata]
+Woloshyn's Eq.~(13) reports the $(2,2)$ element of $R$ as $5.4382$, which
+is in fact the numerical value of an entry in the ${}^1S_0$ Hamiltonian
+matrix \cref{eq:H_1S0}; the correct value, consistent with the
+monotonically growing radial-element pattern, is $0.8821$, as used in
+\cref{eq:r_matrix}. This is one of two copy-paste errata noted in this
+chapter (the other being the ${}^1P_1$ diagonal entry of
+\cref{ssec:matrices}).
+\end{remark}
+
+To extract $\bra{\psi_f}r\ket{\psi_i}$ on a quantum device, we first
+Pauli-decompose the operator $R$ on the work register (analogously to
+\cref{ssec:pauli_decomp}). The matrix element then reduces to a sum of
+terms of the form $\bra{\psi_f}P\ket{\psi_i}$ for Pauli strings $P$.
+Each such term can be estimated by the \emph{Hadamard
+test}~\cite{nielsen2010}: with one ancilla qubit prepared in $\ket{0}$,
+the circuit shown in \cref{fig:hadamard_test} yields an ancilla-zero
+probability
+\begin{equation}
+  \label{eq:hadamard_test}
+  \mathrm{Prob}(0_{\mathrm{anc}})
+  = \frac{1 + \Re\,\bra{\psi_f}P\ket{\psi_i}}{2},
+\end{equation}
+from which the real part of the matrix element is obtained as
+$2\,\mathrm{Prob}(0_{\mathrm{anc}}) - 1$. Replacing the leading
+Hadamard on the ancilla by a $S^{\dagger} H$ rotation yields, by the same
+algebra, the imaginary part of the matrix element. For real-symmetric
+problems such as the channel Hamiltonians considered here, only the real
+part is needed.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}[column sep=10pt]
+  \lstick{$\ket{0}_{\mathrm{anc}}$} & \gate{H} & \ctrl{1}     & \gate{H} & \meter{} \\
+  \lstick{$\ket{\psi_i}$}           & \gate{U_{f\leftarrow i}^{\dagger}\,P} & \qw & \qw & \qw
+\end{quantikz}
+\caption{Hadamard test for the matrix element $\bra{\psi_f}P\ket{\psi_i}$.
+  Conditioned on the ancilla, the work register is rotated by an operator
+  whose expectation value coincides with the desired matrix element. The
+  ancilla-zero probability is $(1 + \Re\bra{\psi_f}P\ket{\psi_i})/2$.
+  Replacing the first Hadamard by $S^{\dagger}H$ gives the imaginary
+  part.}
+\label{fig:hadamard_test}
+\end{figure}
+
+The E1 transition amplitude is then a weighted sum of Hadamard tests,
+one per Pauli string in the decomposition of $R$:
+\begin{equation}
+  \label{eq:e1_decomposed}
+  \bra{\psi_f}r\ket{\psi_i}
+  = \sum_k r_k\,\bra{\psi_f}P_k\ket{\psi_i},
+\end{equation}
+where $r_k$ are the Pauli coefficients of $R$ obtained from
+\cref{eq:pauli_sum}. With this construction, the same quantum-algorithmic
+framework that yields energies also yields the matrix elements needed
+for radiative transitions, allowing a direct comparison with
+experimental decay widths and lifetimes once eigenstates have been
+obtained.
 
 
 % ──────────────────────────────────────────────────────────────────
-\section{Trotter--Taylor Imaginary-Time Evolution}
-\label{sec:ttite}
+\section{Yi et al.\ --- Trotter--Taylor Imaginary-Time Evolution}
+\label{sec:yi}
 
-The two methods discussed so far---VQE in \cref{sec:vqe} and VQITE in
-\cref{sec:vqite}---share a common strategy: a parameterised ansatz approximates
-the target state, and a classical optimiser navigates the parameter space.
-This restricts the accuracy to the expressibility of the chosen ansatz. The
-Trotter--Taylor Imaginary-Time Evolution (TTITE) scheme of Yi et
-al.~\cite{yi2025}, by contrast, simulates the imaginary-time propagator
-$e^{-H\tau}$ directly on the quantum register, without ever fitting parameters.
-The price is a probabilistic structure: at each step an ancilla measurement
-must yield a particular outcome, and the algorithm proceeds only when it
-does. This section develops the construction in stages, applying it
-throughout to the channel Hamiltonians of
-\cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}.
+Yi et al.~\cite{yi2025} introduce a probabilistic imaginary-time evolution
+algorithm, named Trotter--Taylor Imaginary-Time Evolution (TTITE), based
+on combining a Trotter decomposition of the imaginary-time propagator
+with a truncated Taylor expansion implemented through a linear
+combination of unitaries (LCU). They demonstrate the algorithm on the
+molecular hydrogen ($\mathrm{H}_{2}$) Hamiltonian and on one-dimensional
+Heisenberg spin chains. The construction itself depends only on the
+Pauli decomposition of the target Hamiltonian and is therefore generic;
+in this thesis we apply it to the channel Hamiltonians of
+\cref{ssec:matrices} in the same direct encoding used by Woloshyn
+(\cref{ssec:direct_encoding}), providing a third independent route to
+the charmonium spectrum.
 
 \subsection{Strategy: implement the propagator directly}
 \label{ssec:ttite_strategy}
 
-The starting point is again the eigenstate-projection property of imaginary
-time \cref{eq:ite_ground_state}. We seek a unitary protocol that, given the
+In contrast to VQE and VQITE, TTITE does not fit any ansatz. The starting
+point is again the eigenstate-projection property of imaginary time
+\cref{eq:ite_ground_state}. We seek a unitary protocol that, given the
 initial state $\ket{\psi(0)}$ on the work register, returns
 \(
   \ket{\psi(\tau)} \propto e^{-H\tau}\ket{\psi(0)}
@@ -1190,8 +1560,9 @@ to controllable accuracy. Two obstacles must be overcome.
 
 The first obstacle is the non-unitarity of the propagator
 $e^{-H\tau}$. We resolve it by writing each elementary factor of a
-Trotter-decomposed propagator as a linear combination of two unitaries; such
-``LCU'' operators admit a probabilistic implementation via an ancilla.
+Trotter-decomposed propagator as a linear combination of two unitaries;
+such ``LCU'' operators admit a probabilistic implementation via an
+ancilla.
 
 The second obstacle is that the Hamiltonian is a \emph{sum} of Pauli
 strings, and exponentials of a sum cannot generally be separated. We
@@ -1204,8 +1575,9 @@ We now make each of these steps precise.
 \subsection{Trotter decomposition}
 \label{ssec:trotter}
 
-Let $H = \sum_{i=1}^{m} c_i\, h_i$ be the Pauli decomposition of one of the
-channel Hamiltonians, with $c_i\in\mathbb{R}$ and each $h_i$ a Pauli string
+Let $H = \sum_{i=1}^{m} c_i\, h_i$ be the Pauli decomposition of one of
+the channel Hamiltonians (obtained via \cref{eq:pauli_sum}, with the
+direct encoding), with $c_i\in\mathbb{R}$ and each $h_i$ a Pauli string
 satisfying $h_i^{2} = I$. The first-order \emph{Trotter
 formula}~\cite{trotter1959,suzuki1976} approximates the imaginary-time
 propagator for a small step $\Delta\tau$ as
@@ -1215,22 +1587,23 @@ propagator for a small step $\Delta\tau$ as
   = \prod_{i=1}^{m} e^{-c_i\,h_i\,\Delta\tau}
   + O\!\bigl((\Delta\tau)^{2}\bigr),
 \end{equation}
-with leading error proportional to the commutators $[h_i, h_j]$. To evolve
-over a total imaginary time $\tau$ we apply $L = \tau/\Delta\tau$ such
-Trotter steps in succession, accumulating an overall error of order
+with leading error proportional to the commutators $[h_i, h_j]$. To
+evolve over a total imaginary time $\tau$ we apply $L = \tau/\Delta\tau$
+such Trotter steps in succession, accumulating an overall error of order
 $\tau\,\Delta\tau$. Higher-order symmetric (Suzuki) schemes reduce this
 error to $O(\Delta\tau^{2k+1})$ for stage-$2k$ formulas, at the cost of
-more elementary exponentials per
-step~\cite{suzuki1976}; for the small Hamiltonians of this work the
-first-order formula \cref{eq:trotter} is already accurate enough.
+more elementary exponentials per step~\cite{suzuki1976}; for the small
+Hamiltonians of this work the first-order formula \cref{eq:trotter} is
+already accurate enough.
 
 \subsection{Taylor expansion of a single Trotter step}
 \label{ssec:taylor_step}
 
-Each factor $e^{-c\,h\,\Delta\tau}$ in \cref{eq:trotter} is the exponential
-of an Hermitian operator whose square is the identity, $h^{2} = I$. This
-property gives a remarkably simple closed form. Expanding the exponential
-as a power series and separating even and odd powers,
+Each factor $e^{-c\,h\,\Delta\tau}$ in \cref{eq:trotter} is the
+exponential of an Hermitian operator whose square is the identity,
+$h^{2} = I$. This property gives a remarkably simple closed form.
+Expanding the exponential as a power series and separating even and odd
+powers,
 \begin{align}
   \label{eq:taylor_series}
   e^{-c\,h\,\Delta\tau}
@@ -1240,9 +1613,9 @@ as a power series and separating even and odd powers,
    = \cosh(c\,\Delta\tau)\,I - \sinh(c\,\Delta\tau)\,h,
   \label{eq:closed_form}
 \end{align}
-where we used $h^{2k} = I$ and $h^{2k+1} = h$. The single Trotter step is
-therefore exactly a linear combination of two unitaries: the identity and
-$h$ itself. Truncating the series at finite order $R$,
+where we used $h^{2k} = I$ and $h^{2k+1} = h$. The single Trotter step
+is therefore exactly a linear combination of two unitaries: the identity
+and $h$ itself. Truncating the series at finite order $R$,
 \begin{equation}
   \label{eq:taylor_truncation}
   T^{(R)}(c\,\Delta\tau)
@@ -1255,17 +1628,17 @@ $h$ itself. Truncating the series at finite order $R$,
 incurs a Taylor error of order $(\Delta\tau)^{R+1}$, which for
 $R = 4$ or higher is negligible compared to the Trotter error
 $O(\Delta\tau^{2})$ in \cref{eq:trotter}. The truncation is convenient
-because it makes $\alpha$ and $\beta$ polynomials in $\Delta\tau$, slightly
-simpler than $\cosh$ and $\sinh$.
+because it makes $\alpha$ and $\beta$ polynomials in $\Delta\tau$,
+slightly simpler than $\cosh$ and $\sinh$.
 
 \begin{remark}
-The closed form \cref{eq:closed_form} shows that the Taylor truncation is
-in fact \emph{not necessary} for correctness; one could simply use
+The closed form \cref{eq:closed_form} shows that the Taylor truncation
+is in fact \emph{not necessary} for correctness; one could simply use
 $\alpha = \cosh(c\,\Delta\tau)$ and $\beta = -\sinh(c\,\Delta\tau)$. The
-finite-order form \cref{eq:taylor_truncation} matches the construction of
-Yi et al.~\cite{yi2025} and makes the analysis of the LCU success probability
-slightly more uniform across different Hamiltonians, but the algorithm
-itself is unchanged.
+finite-order form \cref{eq:taylor_truncation} matches the construction
+of Yi et al.~\cite{yi2025} and makes the analysis of the LCU success
+probability slightly more uniform across different Hamiltonians, but the
+algorithm itself is unchanged.
 \end{remark}
 
 \subsection{Linear-combination-of-unitaries (LCU) implementation}
@@ -1278,8 +1651,8 @@ construction~\cite{childs2012}, which uses a single ancillary qubit. We
 derive it explicitly here.
 
 Augment the work register with one ancilla qubit, initially in $\ket{0}$.
-The combined state is $\ket{0}\otimes\ket{\psi}$. The LCU circuit applies
-the following three operations.
+The combined state is $\ket{0}\otimes\ket{\psi}$. The LCU circuit
+applies the following three operations.
 
 \paragraph{(i) Ancilla preparation.}
 Apply $R_y(\vartheta)$ to the ancilla with
@@ -1305,10 +1678,10 @@ Apply the controlled unitary
 \(
   CU = \ket{0}\bra{0}\otimes I + \ket{1}\bra{1}\otimes h,
 \)
-which acts as the identity if the ancilla is $\ket{0}$ and as $h$ if it is
-$\ket{1}$. Since $h$ is a Pauli string of length $n$, the controlled gate
-decomposes into $n$ elementary controlled-Pauli gates acting on the work
-qubits. After this step,
+which acts as the identity if the ancilla is $\ket{0}$ and as $h$ if it
+is $\ket{1}$. Since $h$ is a Pauli string of length $n$, the controlled
+gate decomposes into $n$ elementary controlled-Pauli gates acting on the
+work qubits. After this step,
 \begin{equation}
   \label{eq:lcu_state2}
   \ket{\phi_2}
@@ -1320,8 +1693,8 @@ qubits. After this step,
 \paragraph{(iii) Hadamard and measurement on the ancilla.}
 Apply a Hadamard gate to the ancilla and then measure it in the
 computational basis. Using $H\ket{0} = (\ket{0}+\ket{1})/\sqrt{2}$,
-$H\ket{1} = (\ket{0}-\ket{1})/\sqrt{2}$, the state just before measurement
-is
+$H\ket{1} = (\ket{0}-\ket{1})/\sqrt{2}$, the state just before
+measurement is
 \begin{equation}
   \label{eq:lcu_state3}
   \ket{\phi_3}
@@ -1329,8 +1702,8 @@ is
     \Bigl(\ket{0}\otimes(\alpha I + \beta h)\ket{\psi}
         + \ket{1}\otimes(\alpha I - \beta h)\ket{\psi}\Bigr).
 \end{equation}
-A measurement outcome of $0$ on the ancilla projects the work register onto
-the (unnormalised) state $(\alpha I + \beta h)\ket{\psi}$. After
+A measurement outcome of $0$ on the ancilla projects the work register
+onto the (unnormalised) state $(\alpha I + \beta h)\ket{\psi}$. After
 renormalisation this is precisely the desired truncated Trotter step.
 
 The probability of measuring $\ket{0}$ on the ancilla,
@@ -1343,8 +1716,8 @@ The probability of measuring $\ket{0}$ on the ancilla,
 sets the cost of the protocol: if the measurement returns $\ket{1}$ the
 work state has been corrupted and the segment must be restarted from
 $\ket{\psi}$. For small $\Delta\tau$ one has $\alpha \approx 1$ and
-$\beta \approx -c\Delta\tau$, so $P_{\mathrm{s}}\approx 1/2$; the protocol
-is therefore efficient at small step sizes.
+$\beta \approx -c\Delta\tau$, so $P_{\mathrm{s}}\approx 1/2$; the
+protocol is therefore efficient at small step sizes.
 
 \Cref{fig:lcu_circuit} summarises the LCU circuit graphically.
 
@@ -1361,8 +1734,8 @@ is therefore efficient at small step sizes.
   Pauli string $h$ entangles ancilla and work, a Hadamard interferes the
   two LCU branches, and a measurement on the ancilla post-selects the
   desired branch. The work register collapses to the (renormalised)
-  truncated step exactly when the measurement outcome is $0$, an event of
-  probability $P_{\mathrm{s}}$ given by \cref{eq:lcu_success}.}
+  truncated step exactly when the measurement outcome is $0$, an event
+  of probability $P_{\mathrm{s}}$ given by \cref{eq:lcu_success}.}
 \label{fig:lcu_circuit}
 \end{figure}
 
@@ -1377,14 +1750,15 @@ procedure, summarised in \cref{alg:ttite}.
 \centering
 \fbox{\begin{minipage}{0.94\textwidth}\small
 \textbf{Algorithm: TTITE.} \\[2pt]
-\textit{Input:} Pauli decomposition $H = \sum_{i=1}^{m} c_i\,h_i$; initial
-state $\ket{\psi_0}$; total time $\tau$; step size $\Delta\tau$; Taylor
-order $R$. \\
+\textit{Input:} Pauli decomposition $H = \sum_{i=1}^{m} c_i\,h_i$;
+initial state $\ket{\psi_0}$; total time $\tau$; step size $\Delta\tau$;
+Taylor order $R$. \\
 \textit{Output:} an approximation to
 $e^{-H\tau}\ket{\psi_0}/\|e^{-H\tau}\ket{\psi_0}\|$.
 
 \begin{enumerate}\setlength{\itemsep}{2pt}
-  \item Set $L = \lceil\tau/\Delta\tau\rceil$ and $\ket{\psi}\leftarrow\ket{\psi_0}$.
+  \item Set $L = \lceil\tau/\Delta\tau\rceil$ and
+    $\ket{\psi}\leftarrow\ket{\psi_0}$.
   \item Repeat $L$ times:
   \begin{enumerate}
     \item For $i = 1,\ldots,m$:
@@ -1393,41 +1767,32 @@ $e^{-H\tau}\ket{\psi_0}/\|e^{-H\tau}\ket{\psi_0}\|$.
         \cref{eq:taylor_truncation} with $c=c_i$ and $h=h_i$.
       \item Build the LCU circuit of \cref{fig:lcu_circuit} with angle
         \cref{eq:lcu_angle} and controlled-Pauli string $h_i$.
-      \item Execute the circuit on $\ket{0}_{\mathrm{anc}}\otimes\ket{\psi}$;
-        on outcome $0$ update $\ket{\psi}$ with the (renormalised) post-selected
-        state; on outcome $1$ \emph{restart} the current Trotter step.
+      \item Execute the circuit on
+        $\ket{0}_{\mathrm{anc}}\otimes\ket{\psi}$; on outcome $0$ update
+        $\ket{\psi}$ with the (renormalised) post-selected state; on
+        outcome $1$ \emph{restart} the current Trotter step.
     \end{enumerate}
   \end{enumerate}
   \item Return $\ket{\psi}$.
 \end{enumerate}
 \end{minipage}}
-\caption{Pseudocode for the TTITE algorithm. Each Trotter step requires $m$
-  successful LCU post-selections; the per-segment success probability is
-  given by \cref{eq:segment_success}.}
+\caption{Pseudocode for the TTITE algorithm. Each Trotter step requires
+  $m$ successful LCU post-selections; the per-segment success
+  probability is given by \cref{eq:segment_success}.}
 \label{alg:ttite}
 \end{figure}
 
 The algorithm is generic in the Hamiltonian: it uses only the Pauli
-decomposition produced in \cref{sec:encoding} and the (small) number of
-qubits required by that encoding. In this work we apply it to the channel
-Hamiltonians in the direct encoding (two work qubits plus one ancilla,
-i.e.\ three qubits in total).
-
-\begin{remark}[Originally on $\mathrm{H}_2$ and Heisenberg models]
-The algorithm was introduced and demonstrated by Yi et al.~\cite{yi2025} on
-the molecular hydrogen ($\mathrm{H}_{2}$) Hamiltonian and on
-one-dimensional Heisenberg spin chains. Because the procedure depends only
-on the Pauli decomposition of the Hamiltonian, it transfers without
-modification to the channel Hamiltonians of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1};
-we will benchmark its convergence on those Hamiltonians in subsequent
-chapters.
-\end{remark}
+decomposition produced via \cref{eq:pauli_sum} and the (small) number of
+qubits required by the encoding. In this work we apply it to the channel
+Hamiltonians in the direct encoding of \cref{ssec:direct_encoding} (two
+work qubits plus one ancilla, i.e.\ three qubits in total).
 
 \subsection{Success probability and resource cost}
 \label{ssec:ttite_resources}
 
-Each Trotter step requires $m$ LCU circuits to succeed (one per Pauli term),
-so the segment-level success probability factorises:
+Each Trotter step requires $m$ LCU circuits to succeed (one per Pauli
+term), so the segment-level success probability factorises:
 \begin{equation}
   \label{eq:segment_success}
   P_{\mathrm{seg}} = \prod_{i=1}^{m} P_{\mathrm{s},i},
@@ -1441,8 +1806,8 @@ First, Yi et al.~\cite{yi2025} prove that the success probability is
 \emph{monotonically non-decreasing} in the imaginary-time step: as the
 state approaches the ground state, applying $H - E_0$ becomes
 quasi-tangential to it, which inflates the success probabilities
-$P_{\mathrm{s},i}$. Concretely, with $\tau_\ell = \ell\,\Delta\tau$ denoting
-the cumulative imaginary time after the $\ell$-th segment,
+$P_{\mathrm{s},i}$. Concretely, with $\tau_\ell = \ell\,\Delta\tau$
+denoting the cumulative imaginary time after the $\ell$-th segment,
 \begin{equation}
   \label{eq:monotone_success}
   P_{\mathrm{seg}}(\tau_1) \;\leq\;
@@ -1453,298 +1818,90 @@ the cumulative imaginary time after the $\ell$-th segment,
 so the algorithm becomes \emph{more} efficient as it converges.
 
 Second, the failure probability $1 - P_{\mathrm{s},i}$ can be amplified
-toward zero by amplitude
-amplification, at a cost of additional ancillas and depth. We do not employ
-amplitude amplification in this work, instead relying on the simpler
-repeat-until-success strategy described in
-\cref{alg:ttite}. For the two-qubit channel Hamiltonians considered here
-the per-segment cost is at most a small multiplicative overhead, and the
-algorithm remains practical for the imaginary times required to reach the
-ground state.
+toward zero by amplitude amplification, at a cost of additional ancillas
+and depth. We do not employ amplitude amplification in this work,
+instead relying on the simpler repeat-until-success strategy described
+in \cref{alg:ttite}. For the two-qubit channel Hamiltonians considered
+here, the per-segment cost is at most a small multiplicative overhead,
+and the algorithm remains practical for the imaginary times required to
+reach the ground state.
 
 The overall picture is therefore the following. TTITE bypasses the
 parameter-space optimisation of VQE and VQITE by implementing the
-imaginary-time propagator more or less directly on the device, at the price
-of an ancilla and a post-selection step per Pauli term. Its accuracy is
-controlled by two parameters, $\Delta\tau$ and $R$, and is unaffected by
-ansatz expressibility. We will see in the next chapters how the three
-algorithms compare on the same channel Hamiltonians.
-
-
-% ──────────────────────────────────────────────────────────────────
-\section{Transition Amplitudes}
-\label{sec:transitions}
-
-The algorithms in the previous sections produce eigenstates of the
-individual channel Hamiltonians. Most experimentally accessible observables,
-however, involve \emph{matrix elements} of an operator between two such
-eigenstates---typically a transition operator inducing a radiative decay
-from a heavier state to a lighter one. In this section we develop the
-quantum-circuit techniques required to evaluate the two transition types
-relevant to charmonium spectroscopy: the magnetic-dipole (M1) transitions
-between spin partners, and the electric-dipole (E1) transitions that
-change the orbital angular momentum.
-
-\subsection{Physical motivation}
-\label{ssec:transitions_physics}
-
-In the multipole expansion of the electromagnetic interaction of a
-quark--antiquark system, the leading single-photon transitions are
-classified by their selection rules~\cite{brambilla2011}:
-\begin{itemize}\setlength{\itemsep}{2pt}
-  \item \emph{M1 transitions} flip the total spin without changing the
-    orbital angular momentum ($\Delta S = 1$, $\Delta L = 0$). In the
-    non-relativistic limit the amplitude reduces to a wavefunction overlap
-    between the two spin partners, scaled by a numerical prefactor.
-  \item \emph{E1 transitions} change the orbital angular momentum by one
-    unit without altering the spin ($\Delta S = 0$, $\Delta L = 1$). The
-    amplitude is proportional to the radial matrix element of the
-    position operator, $\bra{\psi_f}r\ket{\psi_i}$.
-\end{itemize}
-The two paradigmatic examples for charmonium are
-$J/\psi \to \eta_c\,\gamma$ (M1) and $h_c \to \eta_c\,\gamma$ (E1).
-Computing their amplitudes therefore amounts to evaluating, respectively,
-the overlap $\braket{\psi_f^{({}^1S_0)}}{\psi_i^{({}^3S_1)}}$ and the matrix
-element $\bra{\psi_f^{({}^1S_0)}}r\ket{\psi_i^{({}^1P_1)}}$, where the
-states are the eigenvectors produced by VQE, VQITE, or TTITE.
-
-\subsection{M1 transitions: state overlaps}
-\label{ssec:m1}
-
-In the non-relativistic limit, the M1 transition amplitude between two
-states differing only in spin reduces to an overlap of their spatial
-wavefunctions,
-\begin{equation}
-  \label{eq:m1_amplitude}
-  |\mathcal{M}_{\mathrm{M1}}|^{2} \;\propto\;
-  \bigl|\braket{\psi_f^{\mathrm{spatial}}}{\psi_i^{\mathrm{spatial}}}\bigr|^{2}.
-\end{equation}
-The two states are eigenvectors of different channel Hamiltonians
-(${}^1S_0$ and ${}^3S_1$) but live in the same HO basis, so their overlap
-is well-defined as a four-dimensional inner product of real coefficient
-vectors. Three quantum-circuit techniques are available to estimate this
-overlap.
-
-\paragraph{Inverse-ansatz protocol.}
-If the two ansatz unitaries $U_i = U(\bm{\theta}_i^{\star})$ and
-$U_f = U(\bm{\theta}_f^{\star})$ have been determined---e.g., as the output of
-two VQE or VQITE runs---then the overlap can be read off from the
-all-zero outcome of the circuit $U_f^{\dagger} U_i\ket{0}^{\otimes n}$. Indeed,
-\begin{equation}
-  \label{eq:inverse_ansatz}
-  \mathrm{Prob}\bigl(\text{all zeros}\bigr) =
-    \bigl|\bra{0}^{\otimes n}\,U_f^{\dagger} U_i\,\ket{0}^{\otimes n}\bigr|^{2}
-  = \bigl|\braket{\psi_f}{\psi_i}\bigr|^{2}.
-\end{equation}
-This protocol requires no additional qubits, only an inverse-ansatz
-sub-circuit, and is the most economical method available when both ansatz
-unitaries can be efficiently implemented.
-
-\paragraph{Swap test.}
-A more general protocol, applicable when $\ket{\psi_i}$ and $\ket{\psi_f}$
-are prepared independently on two copies of the work register, is the swap
-test~\cite{nielsen2010}. Adding one ancilla initialised in $\ket{0}$, the
-circuit
-\begin{equation}
-  \label{eq:swap_test}
-  \ket{0}\otimes\ket{\psi_i}\otimes\ket{\psi_f}
-  \;\xrightarrow{H_{\mathrm{anc}}}\;
-  \cdots
-  \;\xrightarrow{\mathrm{CSWAP}}\;
-  \cdots
-  \;\xrightarrow{H_{\mathrm{anc}}}\;
-  \ket{\phi}
-\end{equation}
-yields an ancilla-zero probability
-\(
-  \mathrm{Prob}(0_{\mathrm{anc}})
-   = \tfrac{1}{2}\bigl(1 + |\braket{\psi_f}{\psi_i}|^{2}\bigr),
-\)
-from which the overlap squared is recovered as
-$2\,\mathrm{Prob}(0_{\mathrm{anc}}) - 1$. The swap test is more demanding in
-qubits ($2n + 1$ total) and gates ($n$ controlled-SWAPs), but does not
-require explicit knowledge of either ansatz unitary, only the ability to
-prepare both states on demand. The corresponding circuit is shown in
-\cref{fig:swap_test}.
-
-\begin{figure}[htbp]
-\centering
-\begin{quantikz}[column sep=10pt]
-  \lstick{$\ket{0}_{\mathrm{anc}}$} & \gate{H} & \ctrl{1}  & \gate{H} & \meter{} \\
-  \lstick{$\ket{\psi_i}$}           & \qw      & \swap{1}  & \qw      & \qw \\
-  \lstick{$\ket{\psi_f}$}           & \qw      & \targX{}  & \qw      & \qw
-\end{quantikz}
-\caption{Swap test for the absolute overlap between two ansatz states
-  $\ket{\psi_i}$ and $\ket{\psi_f}$. The Hadamard--CSWAP--Hadamard sandwich
-  interferes the swapped and unswapped configurations of the work registers;
-  the ancilla-zero probability is
-  $(1 + |\braket{\psi_f}{\psi_i}|^{2})/2$. The CSWAP gate acts as a
-  controlled exchange of the two work registers.}
-\label{fig:swap_test}
-\end{figure}
-
-\paragraph{Hadamard test.}
-When the overlap itself rather than its absolute value is required---e.g.\
-for complex amplitudes or for matrix elements of non-unitary
-operators---the Hadamard test~\cite{nielsen2010} is more appropriate. We
-discuss it in the context of E1 transitions in the next subsection.
-
-\subsection{E1 transitions: matrix elements of the radial operator}
-\label{ssec:e1}
-
-For E1 transitions the relevant matrix element is the radial dipole
-amplitude $\bra{\psi_f}r\ket{\psi_i}$, where $\ket{\psi_i}$ and
-$\ket{\psi_f}$ are eigenstates of the initial- and final-state channels.
-In the HO basis the radial operator is an $N\times N$ matrix
-$R_{mk} = \bra{\phi_{m\,\ell_f}} r \ket{\phi_{k\,\ell_i}}$ which, like the
-Hamiltonian, can be evaluated in closed form. Using the same techniques
-that produced \cref{eq:linear_matrix}, one obtains, for the
-$P\to S$ case ($\ell_i = 1, \ell_f = 0$) and $N = 4$, the explicit
-matrix~\cite{woloshyn2023}
-\begin{equation}
-  \label{eq:r_matrix}
-  R \;=\;
-  \begin{pmatrix}
-    0.5775 & -0.4715 & 0      & 0      \\
-    0      &  0.8821 & -0.6668 & 0     \\
-    0      &  0      &  0.8821 & -0.8167\\
-    0      &  0      &  0      &  1.0002
-  \end{pmatrix}
-  \quad \text{(units of fm)}.
-\end{equation}
-The amplitude is then
-\begin{equation}
-  \label{eq:e1_amplitude}
-  \bra{\psi_f}r\ket{\psi_i} = \mathbf{c}_f^{\!\top} R\,\mathbf{c}_i,
-\end{equation}
-where $\mathbf{c}_i$ and $\mathbf{c}_f$ are the real coefficient vectors of
-$\ket{\psi_i}$ and $\ket{\psi_f}$ in the HO basis.
-
-\begin{remark}[Errata]
-Woloshyn's Eq.~(13) reports the $(2,2)$ element of $R$ as $5.4382$, which
-is in fact the numerical value of an entry in the ${}^1S_0$ Hamiltonian
-matrix \cref{eq:H_1S0}; the correct value, consistent with the
-monotonically growing radial-element pattern, is $0.8821$, as used in
-\cref{eq:r_matrix}. This is one of two copy-paste errata noted in
-\cref{ssec:matrices,ssec:e1}.
-\end{remark}
-
-To extract $\bra{\psi_f}r\ket{\psi_i}$ on a quantum device, we first Pauli-
-decompose the operator $R$ on the work register (analogously to
-\cref{ssec:pauli_decomp}). The matrix element then reduces to a sum of
-terms of the form $\bra{\psi_f}P\ket{\psi_i}$ for Pauli strings $P$. Each
-such term can be estimated by the \emph{Hadamard test}: with one ancilla
-qubit prepared in $\ket{0}$, the circuit shown in
-\cref{fig:hadamard_test} yields an ancilla-zero probability
-\begin{equation}
-  \label{eq:hadamard_test}
-  \mathrm{Prob}(0_{\mathrm{anc}})
-  = \frac{1 + \Re\,\bra{\psi_f}P\ket{\psi_i}}{2},
-\end{equation}
-from which the real part of the matrix element is obtained as
-$2\,\mathrm{Prob}(0_{\mathrm{anc}}) - 1$. Replacing the leading Hadamard
-on the ancilla by a $S^{\dagger} H$ rotation yields, by the same algebra,
-the imaginary part of the matrix element. For real-symmetric problems such
-as the channel Hamiltonians considered here, only the real part is needed.
-
-\begin{figure}[htbp]
-\centering
-\begin{quantikz}[column sep=10pt]
-  \lstick{$\ket{0}_{\mathrm{anc}}$} & \gate{H} & \ctrl{1}     & \gate{H} & \meter{} \\
-  \lstick{$\ket{\psi_i}$}           & \gate{U_{f\leftarrow i}^{\dagger}\,P} & \qw & \qw & \qw
-\end{quantikz}
-\caption{Hadamard test for the matrix element $\bra{\psi_f}P\ket{\psi_i}$.
-  Conditioned on the ancilla, the work register is rotated by an operator
-  whose expectation value coincides with the desired matrix element. The
-  ancilla-zero probability is $(1 + \Re\bra{\psi_f}P\ket{\psi_i})/2$.
-  Replacing the first Hadamard by $S^{\dagger}H$ gives the imaginary part.}
-\label{fig:hadamard_test}
-\end{figure}
-
-Putting the pieces together, the E1 transition amplitude is computed as a
-weighted sum of Hadamard tests, one per Pauli string in the decomposition
-of $R$:
-\begin{equation}
-  \label{eq:e1_decomposed}
-  \bra{\psi_f}r\ket{\psi_i}
-  = \sum_k r_k\,\bra{\psi_f}P_k\ket{\psi_i},
-\end{equation}
-where $r_k$ are the Pauli coefficients of $R$ obtained from
-\cref{eq:pauli_sum}. The number of measurements scales with the number of
-Pauli strings, which for the $4\times 4$ matrix \cref{eq:r_matrix} is at
-most $4^{2} = 16$ and typically much smaller after symmetry-based
-truncation.
-
-With this construction, the same quantum-algorithmic framework that yields
-energies also yields the matrix elements needed for radiative transitions,
-allowing a direct comparison with experimental decay widths and lifetimes
-once eigenstates have been obtained.
+imaginary-time propagator more or less directly on the device, at the
+price of an ancilla and a post-selection step per Pauli term. Its
+accuracy is controlled by two parameters, $\Delta\tau$ and $R$, and is
+unaffected by ansatz expressibility.
 
 
 % ──────────────────────────────────────────────────────────────────
 \section{Summary}
 \label{sec:framework-summary}
 
-The framework developed in this chapter equips us with everything needed to
-run the three algorithms on the charmonium channels of interest. The
-Hamiltonian construction of \cref{sec:hamiltonian} produces three
-$4\times 4$ real-symmetric matrices encoding the ${}^1S_0$, ${}^3S_1$, and
-${}^1P_1$ physics; the encodings of \cref{sec:encoding} translate each into a
-sum of Pauli strings on either two or four qubits; the algorithms of
-\cref{sec:vqe,sec:vqite,sec:ttite} provide three independent routes to the
-spectrum of those operators; and the transition machinery of
-\cref{sec:transitions} extends the algorithmic toolkit to observable
-amplitudes.
+The framework developed in this chapter equips us with everything needed
+to reproduce the three quantum simulations of charmonium spectroscopy
+that this thesis benchmarks. \Cref{sec:common} produces three
+$4\times 4$ real-symmetric channel matrices for ${}^1S_0$, ${}^3S_1$,
+and ${}^1P_1$, together with the general procedure for expanding such a
+matrix in Pauli strings. The Gallimore--Liao section
+(\cref{sec:gallimore}) encodes the Hamiltonian fermionically through the
+Jordan--Wigner transformation, uses a UCC ansatz, and minimises the
+energy by classical optimisation; we extend their construction to the
+spin-dependent $N=4$ case for comparability. The Woloshyn section
+(\cref{sec:woloshyn}) encodes the Hamiltonian directly on two qubits,
+uses a three-parameter $R_y$ ansatz, evolves it under the McLachlan
+imaginary-time equations of motion, and computes M1 and E1 transition
+amplitudes. The Yi et al.\ section (\cref{sec:yi}) skips the ansatz
+entirely, implementing the imaginary-time propagator probabilistically
+through LCU circuits on three qubits (two work, one ancilla).
 
-The three algorithms differ in significant ways, summarised in
-\cref{tab:algo_compare}. VQE replaces the diagonalisation of the
-Hamiltonian by a classical optimisation over a parameterised state; its
-quality is set by the expressibility of the ansatz and by the convergence of
-the classical optimiser. VQITE retains a parameterised state but evolves it
-in imaginary time according to the McLachlan principle, trading one
-optimisation problem for a sequence of small linear systems. TTITE
-sidesteps parameterisation entirely, implementing the imaginary-time
-propagator probabilistically through LCU circuits; its cost migrates from
-classical optimisation to ancilla overhead and post-selection.
+\Cref{tab:algo_compare} collects these differences side by side. The
+classical and quantum workloads listed are per iteration or per Trotter
+step.
 
 \begin{table}[htbp]
 \centering
-\caption{Side-by-side comparison of the three algorithms developed in this
-  chapter, as applied to the channel Hamiltonians of
-  \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}. The ``classical workload'' refers to
-  the classical computation per iteration; the ``quantum workload'' refers
-  to the number and depth of circuits executed per iteration. All three
-  algorithms apply to either qubit encoding of \cref{sec:encoding}.}
+\caption{Side-by-side comparison of the three algorithms reproduced in
+  this chapter, as applied to the channel Hamiltonians of
+  \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}. Each method uses the encoding chosen
+  by its source paper, with the small caveat that Gallimore and Liao's
+  $N=3$ spinless setting is extended to $N=4$ with spin in
+  \cref{ssec:gallimore_extension}.}
 \label{tab:algo_compare}
 \renewcommand{\arraystretch}{1.15}
 \begin{tabular}{p{0.22\textwidth}p{0.24\textwidth}p{0.24\textwidth}p{0.24\textwidth}}
 \toprule
-                 & VQE                            & VQITE                          & TTITE                          \\
+                 & Gallimore--Liao (VQE)         & Woloshyn (VQITE)               & Yi et al.\ (TTITE)             \\
 \midrule
+Encoding         & Jordan--Wigner                 & Direct (compact)               & Direct (compact)               \\[2pt]
+Qubits (work + anc.) & $N$ + 0                    & $\lceil\log_2 N\rceil$ + 0     & $\lceil\log_2 N\rceil$ + 1     \\[2pt]
+Pauli terms (N=4) & $\sim 17$                     & $\sim 10$                      & $\sim 10$                      \\[2pt]
+Ansatz           & UCC, $N{-}1$ params            & $R_y$ + CNOT, $3$ params       & none                            \\[2pt]
 What is updated  & ansatz parameters              & ansatz parameters              & work-register state itself     \\[2pt]
 What is optimised& energy expectation value       & McLachlan residual norm        & --- (no parameters)            \\[2pt]
 Classical workload & gradient-free optimiser      & small linear-system solves     & track ancilla outcomes         \\[2pt]
-Quantum workload   & $\sim m$ circuits / iter.    & $\sim m + p^{2}$ circuits / step & $\sim m$ LCU circuits / step \\[2pt]
 Excited states     & orthogonality constraints    & state-overlap penalties        & not directly supported         \\[2pt]
-Ancilla qubits     & none                         & none                           & one per Trotter step           \\[2pt]
 Dominant error     & ansatz expressibility        & ansatz + Trotter-like step     & Trotter + Taylor + finite shots\\
 \bottomrule
 \end{tabular}
 \end{table}
 
-A few qualitative consequences of \cref{tab:algo_compare} deserve emphasis.
-First, VQE and VQITE share the same parameterised ansatz, so their
-expressibility limits coincide; differences in their numerical performance
-on the channel Hamiltonians will therefore reflect the relative merits of
-direct optimisation versus geometry-respecting imaginary-time descent.
-Second, TTITE achieves accuracy independent of any ansatz, which is
-attractive in principle but requires an ancilla qubit and at least one
-controlled-Pauli string per Hamiltonian term, so its hardware cost grows
-with the size of the Pauli decomposition. Third, transitions, treated in
-\cref{sec:transitions}, are post-processing operations on eigenstates
-produced by any of the three methods; their accuracy is therefore directly
-inherited from the underlying eigenstate accuracy.
+A few qualitative consequences of \cref{tab:algo_compare} deserve
+emphasis. First, the three papers make two distinct encoding choices: the
+fermionic (JW) encoding of Gallimore and Liao uses one qubit per HO basis
+state, whereas the direct encoding of Woloshyn and our application of Yi
+et al.\ uses one qubit per pair of basis states. The JW encoding
+introduces a particle-conservation constraint on the ansatz, while the
+direct encoding does not. Second, Gallimore--Liao and Woloshyn both
+optimise parameters of a small ansatz manifold, so their accuracy is
+bounded above by that manifold's expressibility; Yi et al.'s scheme
+sidesteps the ansatz at the price of one ancilla qubit and a
+post-selection per Pauli term. Third, transitions
+(\cref{ssec:transitions}) are post-processing operations on eigenstates
+produced by any of the three methods; their accuracy is therefore
+directly inherited from the underlying eigenstate accuracy.
 
-The next chapter applies all three algorithms to the channel Hamiltonians,
-quantifying these trade-offs through numerical experiments with the
-codebase developed alongside this thesis.
+The next chapter applies all three algorithms to the channel
+Hamiltonians of \cref{ssec:matrices}, quantifying these trade-offs
+through numerical experiments with the codebase developed alongside this
+thesis.
