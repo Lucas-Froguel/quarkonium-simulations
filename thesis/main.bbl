@@ -1016,6 +1016,41 @@
       \verb https://github.com/Lucas-Froguel/quarkonium-simulations
       \endverb
     \endentry
+    \entry{pdg2024}{article}{}{}
+      \true{moreauthor}
+      \true{morelabelname}
+      \name{author}{2}{}{%
+        {{hash=4eea7085eaa05715b19a05077bd8a97c}{%
+           family={{Particle Data Group}},
+           familyi={P\bibinitperiod}}}%
+        {{hash=25b6d239864c97a90ec8be94cdea417d}{%
+           family={Navas},
+           familyi={N\bibinitperiod},
+           given={S.},
+           giveni={S\bibinitperiod}}}%
+      }
+      \strng{namehash}{bff76161791b44f8157f5127766bea79}
+      \strng{fullhash}{bff76161791b44f8157f5127766bea79}
+      \strng{fullhashraw}{bff76161791b44f8157f5127766bea79}
+      \strng{bibnamehash}{bff76161791b44f8157f5127766bea79}
+      \strng{authorbibnamehash}{bff76161791b44f8157f5127766bea79}
+      \strng{authornamehash}{bff76161791b44f8157f5127766bea79}
+      \strng{authorfullhash}{bff76161791b44f8157f5127766bea79}
+      \strng{authorfullhashraw}{bff76161791b44f8157f5127766bea79}
+      \field{sortinit}{5}
+      \field{sortinithash}{20e9b4b0b173788c5dace24730f47d8c}
+      \field{labelnamesource}{author}
+      \field{labeltitlesource}{title}
+      \field{journaltitle}{Physical Review D}
+      \field{title}{Review of Particle Physics}
+      \field{volume}{110}
+      \field{year}{2024}
+      \field{pages}{030001}
+      \range{pages}{1}
+      \verb{doi}
+      \verb 10.1103/PhysRevD.110.030001
+      \endverb
+    \endentry
   \enddatalist
 \endrefsection
 \endinput

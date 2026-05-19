@@ -356,13 +356,13 @@ Once $H$ has been put in the form \cref{eq:pauli_sum}, each Pauli string can
 be implemented as a basis rotation on the quantum register followed by a
 diagonal measurement, and the expectation value $\langle H\rangle$ recovered
 as the weighted sum $\sum_k c_k\langle P_k\rangle$. The remaining question
-is which qubit register to use---i.e., how to associate physical basis
+is which qubit register to use, \textit{i.e.}, how to associate physical basis
 states with bit-strings. The three source papers make two different
 choices, and we present each choice within the section that uses it.
 
 
 % ──────────────────────────────────────────────────────────────────
-\section{Gallimore \& Liao --- Variational Quantum Eigensolver}
+\section{Gallimore \& Liao: Variational Quantum Eigensolver}
 \label{sec:gallimore}
 
 Gallimore and Liao~\cite{gallimore2023} apply the Variational Quantum
@@ -370,8 +370,8 @@ Eigensolver (VQE)~\cite{peruzzo2014,mcclean2016} to a spinless
 Cornell-potential charmonium Hamiltonian truncated to $N=3$
 harmonic-oscillator basis states. Their construction maps the
 second-quantised one-body operator to qubits via the Jordan--Wigner
-transformation---exposing the problem on a register of three qubits with
-a one-particle constraint---and uses a two-parameter Unitary Coupled
+transformation, exposing the problem on a register of three qubits with
+a one-particle constraint and uses a two-parameter Unitary Coupled
 Cluster ansatz tailored to that constraint. In this section we reproduce
 their development, pointing out the parts that generalise without
 modification to the spin-dependent $N=4$ matrices of \cref{sec:common}.
@@ -531,8 +531,7 @@ $1 + 4 + 6 + 4 + 2 = 17$ Pauli operators acting on four qubits.
 Each Pauli string in \cref{eq:jw_N4_full} carries a coefficient that is
 either a single diagonal entry $H_{nn}$ (for the $Z_n$ terms) or a single
 off-diagonal entry $H_{mn}$ (for each member of a pair). Crucially, the
-\emph{operator structure} of the Pauli decomposition---which strings
-appear, and with what relative signs---is independent of which channel we
+\emph{operator structure} of the Pauli decomposition is independent of which channel we
 work with: the channel-specific information enters only through the
 numerical coefficients. The same 17 Pauli strings of
 \cref{eq:jw_N4_full} therefore describe $\widehat{H}^{({}^1S_0)}$,
@@ -640,7 +639,7 @@ in the basis size.
 \end{figure}
 
 The circuit has $1$ single-qubit $X$ gate, $3$ controlled-$R_y$ gates, and
-$6$ CNOTs in total---comparable in depth to the Woloshyn ansatz of
+$6$ CNOTs in total; this is comparable in depth to the Woloshyn ansatz of
 \cref{fig:woloshyn_ansatz} despite using twice as many qubits, because the
 single-particle constraint sharply restricts the relevant subspace.
 
@@ -792,7 +791,7 @@ The Gallimore--Liao construction was originally applied to a
 $3\times 3$ Hamiltonian, a JW Hamiltonian on three qubits, and a
 two-parameter UCC ansatz. In this thesis we want to compare VQE with
 VQITE (\cref{sec:woloshyn}) and TTITE (\cref{sec:yi}) on the same physical
-system---the spin-dependent ${}^1S_0$, ${}^3S_1$, ${}^1P_1$ matrices of
+system: the spin-dependent ${}^1S_0$, ${}^3S_1$, ${}^1P_1$ matrices of
 \cref{ssec:matrices}. The Gallimore--Liao construction extends in two
 respects to make this possible.
 
@@ -824,7 +823,7 @@ comparison reported in the next chapter.
 
 
 % ──────────────────────────────────────────────────────────────────
-\section{Woloshyn --- Variational Imaginary-Time Evolution}
+\section{Woloshyn: Variational Imaginary-Time Evolution}
 \label{sec:woloshyn}
 
 Woloshyn~\cite{woloshyn2023} simulates the same spin-dependent charmonium

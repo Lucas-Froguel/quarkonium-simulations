@@ -12,7 +12,7 @@ toward efficient simulation of physical systems that are otherwise
 inaccessible~\cite{nielsen2010}.
 
 This thesis applies variational quantum algorithms to the spectroscopy of
-charmonium---bound states of a charm quark and its antiquark---including
+charmonium, bound states of a charm quark and its antiquark, including
 spin-dependent interactions that produce the experimentally observed mass
 splittings between states such as the $\eta_c$ and $J/\psi$ mesons. The
 quarkonium system is physically rich enough to probe the capabilities of
@@ -40,7 +40,7 @@ barrier: the state space of an $n$-particle quantum system is a Hilbert space of
 dimension $2^n$, so that a faithful classical representation requires resources
 that grow exponentially with system size. A modest system of 50 interacting
 spin-$\tfrac{1}{2}$ particles, for instance, demands $2^{50}\approx 10^{15}$
-complex amplitudes---exceeding the memory of any existing classical computer.
+complex amplitudes, which exceeds the memory of any existing classical computer.
 
 In 1982, Feynman proposed a radical alternative: rather than simulating quantum
 mechanics on a classical machine, one should use a controllable quantum system to
@@ -123,14 +123,13 @@ persists regardless of the spatial separation between the qubits and cannot be
 explained by any local hidden variable theory, as demonstrated by Bell's
 theorem~\cite{bell1964}.
 
-Entanglement is not merely a theoretical curiosity---it is a computational
-resource. Classical correlations can be shared between bits using shared
+Entanglement is one of the biggest computational resources that quantum computers give us.
+Classical correlations can be shared between bits using shared
 randomness, but entangled qubits carry correlations that are strictly stronger.
 In quantum algorithms, entangling gates create superpositions over correlated
 multi-qubit configurations, enabling the exploration of an exponentially large
 solution space in a way that has no classical counterpart. Without entanglement, a
-quantum computer can be efficiently simulated classically~\cite{nielsen2010};
-it is entanglement that unlocks the full power of quantum computation.
+quantum computer can be efficiently simulated classically~\cite{nielsen2010}.
 
 
 \subsection{Quantum gates and circuits}
@@ -151,7 +150,7 @@ The three Pauli operators form a basis for single-qubit operations:
 Together with the identity $I$, they satisfy $\sigma_i^2 = I$, anticommute
 pairwise ($\sigma_i\sigma_j = -\sigma_j\sigma_i$ for $i\neq j$), and form a
 basis for the space of $2\times 2$ Hermitian matrices. Any $2\times 2$ Hermitian
-operator---and hence any single-qubit observable---can be written as
+operator, and hence any single-qubit observable, can be written as
 $A = a_0 I + a_1 X + a_2 Y + a_3 Z$ with $a_i\in\mathbb{R}$.
 
 The Pauli operators generate continuous families of rotation gates on the Bloch
@@ -217,7 +216,7 @@ Applied to an equal superposition over all $2^n$ inputs, it produces
   = \frac{1}{\sqrt{2^n}}\sum_{x=0}^{2^n-1}\ket{x}\ket{f(x)}.
 \end{equation}
 All function values are encoded in a single quantum state. However, measuring
-this state yields a \emph{single} random pair $(x,f(x))$---no better than
+this state yields a \emph{single} random pair $(x,f(x))$ - no better than
 classical evaluation. The power of quantum algorithms lies in subsequent
 operations that exploit \emph{interference}: unitary gates are designed so that
 amplitudes corresponding to desired outputs add constructively, while those
@@ -249,7 +248,7 @@ information encoded in the remaining amplitudes is irretrievably lost.
 
 This has a direct practical consequence: a single measurement of $n$ qubits
 yields only $n$ classical bits, despite the state containing $2^n$ amplitudes.
-To estimate a continuous quantity---such as an energy expectation value---the
+To estimate a continuous quantity, such as an energy expectation value, the
 measurement must be repeated many times ($N_{\text{shots}}$ repetitions), and the
 result is subject to statistical uncertainty scaling as $1/\sqrt{N_{\text{shots}}}$.
 
@@ -279,8 +278,7 @@ $\ket{\psi}$ is
   \label{eq:density_pure}
   \rho = \ket{\psi}\bra{\psi}.
 \end{equation}
-A \emph{mixed state}---representing classical uncertainty about which pure state
-the system is in---is described by a convex combination
+A \emph{mixed state} is described by a convex combination
 \begin{equation}
   \label{eq:density_mixed}
   \rho = \sum_i p_i \ket{\psi_i}\bra{\psi_i},
@@ -292,8 +290,8 @@ $\mathrm{Tr}(\rho^2) < 1$, quantifying the degree of decoherence.
 
 In the density matrix formalism, unitary evolution becomes
 $\rho \mapsto U\rho\, U^\dagger$, and expectation values are computed as
-$\expval{O}=\mathrm{Tr}(O\rho)$. Noise processes---such as the depolarizing
-channel relevant to this thesis---are described by completely positive
+$\expval{O}=\mathrm{Tr}(O\rho)$. Noise process, such as the depolarizing
+channel relevant to this thesis, are described by completely positive
 trace-preserving (CPTP) maps on $\rho$. For example, the single-qubit
 depolarizing channel with error rate $p$ acts as
 \begin{equation}
@@ -309,8 +307,8 @@ This formalism will be central to the analysis of noise effects in
 \subsection{Quantum simulation}
 \label{sec:qsim}
 
-Among the many proposed applications of quantum computing---including
-cryptanalysis, optimization, and machine learning---the simulation of quantum
+Among the many proposed applications of quantum computing, including
+chemestry, optimization, and machine learning, the simulation of quantum
 systems stands out as the most natural and arguably the most promising near-term
 application~\cite{feynman1982,preskill2018}. The reason is both conceptual and
 practical: a quantum computer \emph{is} a quantum system, so using it to simulate
@@ -367,7 +365,7 @@ The NISQ era has therefore driven the development of algorithms specifically
 designed for shallow circuits and resilient to moderate noise levels. The most
 successful paradigm to date is the \emph{variational} approach, in which a
 quantum processor prepares parameterized trial states while a classical computer
-optimizes the parameters---a hybrid strategy discussed in the next section.
+optimizes the parameters.
 
 
 % ──────────────────────────────────────────────────────────────────
@@ -497,7 +495,7 @@ governs the binding of quarks and gluons into hadrons. Among the simplest
 hadronic systems are \emph{quarkonia}: bound states of a heavy quark and its
 antiquark ($q\bar{q}$). Charmonium ($c\bar{c}$) systems have served as testing
 grounds for QCD since the simultaneous discovery of the $J/\psi$ meson in 1974
-at BNL~\cite{aubert1974} and SLAC~\cite{augustin1974}---an event known as the
+at BNL~\cite{aubert1974} and SLAC~\cite{augustin1974} -- an event known as the
 \emph{November Revolution} in particle physics.
 
 The large mass of the charm quark ($m_c \approx 1.27$~GeV/$c^2$) implies that
@@ -574,8 +572,8 @@ shows the characteristic shape of this potential.
 
 The spin-independent Cornell potential alone does not account for the full
 charmonium spectrum. The mass splitting between states with different spin
-quantum numbers---for instance, between the $\eta_c$ (${}^1S_0$, spin singlet)
-and the $J/\psi$ (${}^3S_1$, spin triplet)---requires spin-dependent
+quantum numbers, for instance, between the $\eta_c$ (${}^1S_0$, spin singlet)
+and the $J/\psi$ (${}^3S_1$, spin triplet), requires spin-dependent
 corrections. At leading order, the dominant contribution for $S$-wave states is
 the hyperfine contact interaction~\cite{brambilla2011},
 \begin{equation}

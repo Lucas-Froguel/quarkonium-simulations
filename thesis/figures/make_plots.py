@@ -171,7 +171,33 @@ def plot_excited_states(excited: dict, output_dir: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Figures 4 & 5: Noise sweep — energy error and fidelity
+# Figure: wall-time bar chart
+# ---------------------------------------------------------------------------
+
+def plot_wall_time(noiseless: dict, output_dir: Path) -> None:
+    fig, ax = plt.subplots(figsize=(7, 3.2))
+    x = np.arange(len(CHANNELS))
+    methods_present = [m for m in METHOD_ORDER if m in noiseless[CHANNELS[0]]]
+    n = len(methods_present)
+    width = 0.8 / n
+    for i, m in enumerate(methods_present):
+        times = [float(noiseless[ch][m]["wall_time"]) for ch in CHANNELS]
+        offset = (i - (n - 1) / 2) * width
+        ax.bar(x + offset, times, width=width * 0.95,
+               label=METHOD_LABEL[m], color=COLOUR[m])
+    ax.set_xticks(x)
+    ax.set_xticklabels([CHANNEL_TITLE[ch] for ch in CHANNELS])
+    ax.set_yscale("log")
+    ax.set_ylabel("wall time (s)")
+    ax.grid(axis="y", which="both", alpha=0.3, linewidth=0.5)
+    ax.legend(frameon=False, ncol=2, loc="upper center",
+              bbox_to_anchor=(0.5, -0.18))
+    fig.tight_layout()
+    _save(fig, output_dir / "wall_time.jpeg")
+
+
+# ---------------------------------------------------------------------------
+# Figures: Noise sweep — energy error and fidelity
 # ---------------------------------------------------------------------------
 
 def _aggregate_noise(noise: dict, channel: str, method: str, kind: str):
@@ -290,6 +316,7 @@ def main() -> None:
             noiseless = json.load(f)
         plot_convergence(noiseless, out_dir)
         plot_energy_summary(noiseless, out_dir)
+        plot_wall_time(noiseless, out_dir)
     else:
         print(f"WARN: {noiseless_file} not found, skipping convergence plot")
 

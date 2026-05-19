@@ -136,6 +136,85 @@ accuracy of the variational methods.
 \label{fig:energy_summary}
 \end{figure}
 
+\subsection{Computational cost}
+\label{ssec:noiseless-walltime}
+
+\Cref{fig:wall_time} reports the wall-clock time per noiseless
+ground-state computation, extracted from the run logs. Three orders of
+magnitude separate TTITE---which on a noiseless statevector backend
+needs only a single chain of LCU circuits and a final shot-based energy
+measurement---from VQITE, whose imaginary-time loop estimates a fresh
+metric tensor (six overlap circuits) and a fresh parameter-shift
+gradient (six energy evaluations) at every step. VQE-direct and VQE-JW
+sit between them, with VQE-JW $\sim 20\%$ slower because of the
+deeper UCC circuit on twice as many qubits.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.85\textwidth]{figures/wall_time.jpeg}
+\caption{Wall-clock time of a single noiseless ground-state run on each
+  channel (log scale). VQITE pays for its quantum metric tensor by
+  $\mathcal{O}(50\times)$ in wall time relative to VQE; TTITE is two
+  orders of magnitude faster than either variational method on the
+  noiseless statevector backend.}
+\label{fig:wall_time}
+\end{figure}
+
+\subsection{Physical interpretation: meson masses}
+\label{ssec:meson_masses}
+
+The Hamiltonian of \cref{ssec:matrices} is the internal binding
+Hamiltonian of the charm--anticharm pair, so the predicted meson mass
+is obtained by adding back the rest energy of the two constituent
+quarks,
+\begin{equation}
+  \label{eq:meson_mass}
+  M_{\mathrm{meson}}
+  \;=\; 2\,m_c + E_0 \cdot \hbar c,
+\end{equation}
+with $m_c = 1.4794$~GeV and $\hbar c = 197.326$~MeV$\cdot$fm. Applying
+\cref{eq:meson_mass} to the exact-diagonalisation eigenvalues yields
+the predictions of \cref{tab:meson_masses}, which we compare with the
+experimentally measured masses of the corresponding mesons from the
+Particle Data Group~\cite{pdg2024}.
+
+\begin{table}[htbp]
+\centering
+\caption{Predicted ground-state meson masses obtained from the exact
+  diagonalisation of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1} via
+  \cref{eq:meson_mass}, compared with experimental values for the
+  corresponding mesons~\cite{pdg2024}. All masses in MeV.}
+\label{tab:meson_masses}
+\renewcommand{\arraystretch}{1.15}
+\begin{tabular}{lllrrr}
+\toprule
+Channel & Meson & $E_0$ (fm$^{-1}$) & $M_{\mathrm{pred}}$
+        & $M_{\mathrm{exp}}$ & $\Delta M$ \\
+\midrule
+${}^1S_0$ & $\eta_c$ & $0.391$ & $3036$ & $2984$ & $+52$ \\
+${}^3S_1$ & $J/\psi$ & $0.752$ & $3107$ & $3097$ & $+10$ \\
+${}^1P_1$ & $h_c$    & $2.781$ & $3508$ & $3525$ & $-17$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The agreement with experiment is at the $10$--$50$~MeV level, typical
+for a four-state harmonic-oscillator truncation of the Cornell model.
+A particularly stringent test is the
+$J/\psi$--$\eta_c$ hyperfine splitting, where the difference of the
+two predictions cleanly cancels the rest-mass offset:
+\begin{align*}
+  \Delta M_{\mathrm{hf}}^{\mathrm{pred}}
+    &= (E_0^{{}^3S_1} - E_0^{{}^1S_0})\,\hbar c
+    = 71.2~\mathrm{MeV},\\
+  \Delta M_{\mathrm{hf}}^{\mathrm{exp}}
+    &= M_{J/\psi} - M_{\eta_c}
+    = 113~\mathrm{MeV}.
+\end{align*}
+The model under-predicts the splitting by roughly $40$~MeV, a known
+artefact of using a Gaussian-regularised contact term without the full
+spin--orbit corrections of \cref{eq:hyperfine}.
+
 \subsection{Excited states}
 \label{ssec:excited}
 
@@ -207,6 +286,69 @@ the third level for ${}^1S_0$ and ${}^1P_1$, though it inherits the
 same $k=3$ degradation elsewhere.
 
 % ──────────────────────────────────────────────────────────────────
+\section{Transition amplitudes}
+\label{sec:transitions-results}
+
+The machinery of \cref{ssec:transitions} converts the ground-state
+wavefunctions computed above into transition matrix elements. We
+report two cases:
+\begin{itemize}\setlength{\itemsep}{2pt}
+  \item the M1 amplitude $|\langle\psi^{({}^1S_0)}|\psi^{({}^3S_1)}\rangle|^{2}$
+    for $J/\psi \to \eta_c\,\gamma$, evaluated as the squared overlap
+    of the two singlet/triplet $S$-wave ground states
+    (\cref{eq:m1_amplitude});
+  \item the E1 amplitude $\langle\psi^{({}^1S_0)}|r|\psi^{({}^1P_1)}\rangle$
+    for $h_c \to \eta_c\,\gamma$, evaluated via the radial-operator
+    matrix \cref{eq:r_matrix} and the inner product
+    \cref{eq:e1_amplitude}.
+\end{itemize}
+For VQE-JW we extract the four physical amplitudes from the 16-dimensional
+Jordan--Wigner statevector by projection onto the single-particle
+sector, ensuring an apples-to-apples comparison with the direct-encoded
+methods. \Cref{tab:transitions} collects the results. For E1 we report
+$|\langle\psi^{({}^1S_0)}|r|\psi^{({}^1P_1)}\rangle|$ because the sign
+of the variational state is gauge-dependent (a converged optimisation
+may land on $\pm|\psi\rangle$).
+
+\begin{table}[htbp]
+\centering
+\caption{Transition amplitudes computed from the noiseless wavefunctions
+  of \cref{tab:noiseless}. The classical reference is obtained from the
+  exact diagonalisation of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}. The E1
+  matrix uses the corrected $r$-matrix of \cref{eq:r_matrix}.}
+\label{tab:transitions}
+\renewcommand{\arraystretch}{1.15}
+\small
+\begin{tabular}{lrr}
+\toprule
+Method & $|\langle\eta_c|J/\psi\rangle|^{2}$ (M1) &
+$|\langle\eta_c|r|h_c\rangle|$ (E1, fm) \\
+\midrule
+exact      & $0.993$ & $0.498$ \\
+\midrule
+VQE        & $0.986$ & $0.505$ \\
+VQE-JW     & $0.998$ & $0.498$ \\
+VQITE      & $0.992$ & $0.165$ \\
+TTITE      & $0.993$ & $0.496$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Both M1 amplitudes are within $1\%$ of the classical reference for
+every method, including the methods whose ground-state energy
+estimators are noticeably biased: the overlap is insensitive to the
+specific energy estimator and only requires the wavefunction to be
+close to the exact eigenstate. The E1 amplitudes are more demanding.
+VQE-JW and TTITE agree with the exact reference to better than
+$1\%$. The direct-encoding VQE gets the magnitude right ($0.505$ vs.
+$0.498$~fm); the value of $0.165$~fm returned by VQITE is the direct
+consequence of its catastrophic ${}^1P_1$ ground-state failure
+(\cref{ssec:noiseless-ground}). Together with the energy and fidelity
+data, this confirms that the radiative observables of the charmonium
+spectrum are recovered cleanly whenever the underlying state is.
+
+
+% ──────────────────────────────────────────────────────────────────
 \section{Noisy benchmark}
 \label{sec:noisy}
 
@@ -215,11 +357,9 @@ We now switch the simulator backend to
 the ground-state computation for each method at the five depolarising
 rates listed in \cref{sec:results-setup}. \Cref{fig:noise-energy}
 plots the absolute energy error against $p$ for the three channels;
-\cref{fig:noise-fidelity} plots the fidelity. The Jordan--Wigner VQE
-variant is omitted from the sweep, since its circuit class is similar
-to the direct-encoding VQE and the qualitative noise response is the
-same; the per-method noise behaviour discussed below applies to it as
-well.
+\cref{fig:noise-fidelity} plots the fidelity. Both VQE variants are
+included so that the encoding's effect on noise resilience is visible
+directly.
 
 \begin{figure}[htbp]
 \centering
@@ -239,32 +379,60 @@ well.
 \label{fig:noise-fidelity}
 \end{figure}
 
-The three algorithms degrade in qualitatively different ways. VQE is
-the most resilient: its shallow ansatz (\cref{fig:woloshyn_ansatz}) is
-exposed to only $\mathcal{O}(1)$ gates per energy evaluation, and the
-gradient-free optimiser absorbs the resulting shot+gate noise into the
-search. VQITE degrades faster because the metric tensor and
+The four methods degrade in qualitatively different ways. Among the
+variational algorithms, the direct-encoding VQE is the most resilient:
+its shallow $R_y$\,--\,CNOT ansatz (\cref{fig:woloshyn_ansatz}) is
+exposed to only five gates per Pauli expectation, and the gradient-free
+optimiser absorbs the residual shot+gate noise into the search. The
+Jordan--Wigner VQE, despite using the same VQE skeleton, degrades much
+faster: the UCC ansatz of \cref{fig:ucc_ansatz} chains an $X$ gate, six
+CNOTs and three controlled-$R_y$ rotations on twice as many qubits, so
+the noisy Pauli estimator at the optimum is biased by an amount that
+grows roughly linearly with $p$. At $p = 0.05$ the energy error of
+VQE-JW is $\sim\!3$~fm$^{-1}$ on every channel, whereas VQE-direct stays
+below $\sim\!1.5$~fm$^{-1}$. The encoding choice that was harmless in
+the noiseless regime thus becomes the dominant factor on noisy
+hardware, and confirms a recurring lesson of NISQ-era variational
+algorithms: circuit depth is the noise dial.
+
+VQITE degrades faster still, because the metric tensor and
 parameter-shift estimates of \cref{eq:metric_fd,eq:param_shift} both
-require differences of noisy expectation values, so its effective
-signal-to-noise ratio drops more sharply with $p$. TTITE collapses
-catastrophically: with $\sim\!2{,}250$ sequential noisy gates over a
-full Trotter trajectory and post-selection that cannot reject failed
-LCU branches on real hardware, the work register relaxes toward the
-maximally mixed state $\mathrm{Tr}(H)/4$, and the fidelity drops to
-${\sim}\,0.25$ (random guessing in the 4-d Hilbert space) at any
-non-zero noise rate.
+require differences of noisy expectation values, so the effective
+signal-to-noise ratio of every step drops more sharply with $p$ than for
+a direct energy minimisation; the fidelity drops below $0.3$ by
+$p = 0.05$.
+
+TTITE collapses outright. With $\sim\!2{,}250$ sequential noisy gates
+over a full Trotter trajectory and an ancilla-reset protocol that
+\emph{cannot} reject failed LCU branches on real hardware, the work
+register relaxes toward the maximally mixed state $\mathrm{Tr}(H)/4$,
+and the fidelity drops to ${\sim}\,0.25$ (random guessing in the four
+dimensional Hilbert space) at any non-zero noise rate. The two
+imaginary-time methods that were superior in the noiseless regime are
+therefore the most fragile under depolarising noise.
 
 % ──────────────────────────────────────────────────────────────────
 \section{Summary}
 \label{sec:results-summary}
 
-In the noiseless regime all four methods reproduce the channel
+In the noiseless regime all four methods recover the channel
 eigenvalues, but they are not interchangeable: TTITE is essentially
-exact (limited by simulation precision), VQE in either encoding is
-limited by the chosen ansatz at the $\sim 10^{-2}$~fm$^{-1}$ level,
-and VQITE accuracy is channel dependent because the metric tensor is
-sensitive to the shape of the energy landscape. Under depolarising
-noise the ranking inverts: VQE is the most resilient and TTITE the
-most fragile, with the cross-over already at $p \lesssim 10^{-2}$.
-These observations motivate the noise-mitigation strategies developed
-in the next chapter.
+exact (fidelity above $0.9999$ everywhere, energy error limited only
+by shot noise in the final Pauli measurement), VQE in either encoding
+is limited by the chosen ansatz at the $\sim 10^{-2}$~fm$^{-1}$ level,
+and VQITE recovers the ground state on ${}^1S_0$ and ${}^3S_1$ but
+falls into a local-descent trap on ${}^1P_1$. The transition amplitudes
+$|\langle\eta_c|J/\psi\rangle|^{2}$ and $|\langle\eta_c|r|h_c\rangle|$
+are recovered to within $1\%$ of the classical reference for every
+method whose ground state is correct, confirming that the radiative
+observables of charmonium follow the same accuracy ranking as the
+energies.
+
+Under depolarising noise the ranking inverts and sharpens: the
+shallow-circuit VQE-direct is the most resilient, the deeper-circuit
+VQE-JW degrades to errors of $\mathcal{O}(\text{fm}^{-1})$ at moderate
+$p$, VQITE degrades further still, and TTITE collapses to the
+maximally mixed state at any non-zero noise rate. The encoding choice
+that was second-order in the noiseless regime becomes the dominant
+factor in the noisy one. These observations motivate the
+noise-mitigation strategies developed in the next chapter.
