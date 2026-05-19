@@ -32,9 +32,9 @@ per configuration. A random seed (42) makes the runs reproducible. All
 energies below are reported in inverse-femtometres; multiplication by
 $\hbar c = 197.326$~MeV$\cdot$fm converts to MeV.
 
-The full implementation---including the Hamiltonian builders, the three
+The full implementation, including the Hamiltonian builders, the three
 algorithm wrappers, the noise sweep driver, and the standalone
-visualisation script that produces every figure in this chapter---is
+visualisation script that produces every figure in this chapter, is
 released as open-source software at
 \url{https://github.com/Lucas-Froguel/quarkonium-simulations}~\cite{froguel_quarksim},
 together with all configuration files needed to reproduce the runs
@@ -141,9 +141,9 @@ accuracy of the variational methods.
 
 \Cref{fig:wall_time} reports the wall-clock time per noiseless
 ground-state computation, extracted from the run logs. Three orders of
-magnitude separate TTITE---which on a noiseless statevector backend
+magnitude separate TTITE, which on a noiseless statevector backend
 needs only a single chain of LCU circuits and a final shot-based energy
-measurement---from VQITE, whose imaginary-time loop estimates a fresh
+measurement, from VQITE, whose imaginary-time loop estimates a fresh
 metric tensor (six overlap circuits) and a fresh parameter-shift
 gradient (six energy evaluations) at every step. VQE-direct and VQE-JW
 sit between them, with VQE-JW $\sim 20\%$ slower because of the
@@ -221,7 +221,7 @@ spin--orbit corrections of \cref{eq:hyperfine}.
 We compute the four lowest eigenvalues per channel using the
 orthogonalisation/penalty strategy of \cref{ssec:vqe_excited}. Both
 VQE encodings are run; the VQITE column of \cref{tab:excited} is
-reserved for follow-up work---the same penalty machinery
+reserved for follow-up work; the same penalty machinery
 (\cref{eq:penalised_H}) applies, but the per-step circuit overhead
 makes a full sweep impractical within the time budget of this thesis.
 TTITE does not support excited states directly and is omitted from
@@ -378,6 +378,59 @@ directly.
   channel. Error bars are the standard deviation over three repeats.}
 \label{fig:noise-fidelity}
 \end{figure}
+
+The same data is presented in tabular form in \cref{tab:noise-energies}
+for three noise rates ($p \in \{0\%, 1\%, 5\%\}$), which makes the
+quantitative gap between methods immediate. Each entry is the
+shot-and-seed-averaged ground-state energy estimate, $\bar{E} \pm
+\sigma$, over three independent repeats.
+
+\begin{table}[htbp]
+\centering
+\caption{Mean noisy ground-state energies $\bar{E} \pm \sigma$ (in
+  fm$^{-1}$) over three independent repeats, at depolarising rates
+  $p \in \{0\%, 1\%, 5\%\}$. The exact ground state $E_0$ is listed
+  beside each channel for reference; deviations above $E_0$ measure how
+  far each method has drifted from the true ground state. The column
+  $\mathrm{Tr}(H)/4$ lists the energy of the maximally mixed state to
+  which TTITE converges under any non-zero noise.}
+\label{tab:noise-energies}
+\renewcommand{\arraystretch}{1.15}
+\small
+\begin{tabular}{llrrrr}
+\toprule
+Channel ($E_0$) & $p$ & VQE & VQE-JW & VQITE & TTITE \\
+\midrule
+\multirow{3}{*}{${}^1S_0$ ($0.391$)}
+  & $0\%$ & $0.55 \pm 0.15$ & $0.52 \pm 0.14$ & $0.54 \pm 0.19$ & $0.38 \pm 0.00$ \\
+  & $1\%$ & $0.64 \pm 0.18$ & $1.30 \pm 0.11$ & $2.16 \pm 1.68$ & $4.27 \pm 0.00$ \\
+  & $5\%$ & $1.04 \pm 0.09$ & $3.58 \pm 0.10$ & $4.61 \pm 1.99$ & $4.27 \pm 0.00$ \\
+\midrule
+\multirow{3}{*}{${}^3S_1$ ($0.752$)}
+  & $0\%$ & $0.91 \pm 0.09$ & $0.81 \pm 0.06$ & $0.80 \pm 0.06$ & $0.74 \pm 0.01$ \\
+  & $1\%$ & $1.02 \pm 0.10$ & $1.62 \pm 0.11$ & $1.15 \pm 0.08$ & $4.44 \pm 0.00$ \\
+  & $5\%$ & $2.18 \pm 1.10$ & $3.91 \pm 0.08$ & $5.57 \pm 1.07$ & $4.44 \pm 0.00$ \\
+\midrule
+\multirow{3}{*}{${}^1P_1$ ($2.781$)}
+  & $0\%$ & $2.81 \pm 0.00$ & $2.79 \pm 0.02$ & $2.80 \pm 0.01$ & $2.79 \pm 0.00$ \\
+  & $1\%$ & $2.90 \pm 0.01$ & $3.61 \pm 0.02$ & $2.91 \pm 0.01$ & $5.80 \pm 0.00$ \\
+  & $5\%$ & $3.84 \pm 0.85$ & $6.23 \pm 0.10$ & $5.18 \pm 0.37$ & $5.80 \pm 0.00$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two structural features of \cref{tab:noise-energies} deserve emphasis.
+First, the TTITE column hits a hard ceiling at $\mathrm{Tr}(H)/4$
+(values $4.27$, $4.44$, $5.80$ for the three channels) with zero
+variance for every $p > 0$: the density matrix has fully decohered to
+the maximally mixed state and no further information about the
+spectrum survives. Second, the VQE-JW column rises about twice as fast
+with $p$ as the VQE-direct column on every channel, a direct
+fingerprint of its deeper UCC circuit. VQITE shows the largest
+fluctuations across repeats ($\sigma \gtrsim 1$ at $p = 5\%$ on
+${}^1S_0$ and ${}^3S_1$), consistent with noise corrupting both the
+parameter-shift gradient and the finite-difference metric tensor at
+every step.
 
 The four methods degrade in qualitatively different ways. Among the
 variational algorithms, the direct-encoding VQE is the most resilient:

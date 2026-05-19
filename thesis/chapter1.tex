@@ -19,10 +19,12 @@ quarkonium system is physically rich enough to probe the capabilities of
 near-term quantum algorithms across multiple quantum number channels and excited
 states, yet small enough to be tractable with only a few qubits.
 
-The remainder of this chapter introduces the three pillars on which this work
-rests: the fundamentals of quantum computing (\cref{sec:qc}), variational
-quantum methods (\cref{sec:variational}), and the quarkonium problem
-(\cref{sec:quarkonium}).
+The remainder of this chapter introduces the two foundations on which the
+algorithmic chapters rest: the fundamentals of quantum computing
+(\cref{sec:qc}) and the variational paradigm that makes near-term quantum
+hardware useful (\cref{sec:variational}). The charmonium system and its
+discretisation into a finite-dimensional matrix problem are developed in
+\cref{ch:framework}.
 
 
 % ──────────────────────────────────────────────────────────────────
@@ -54,9 +56,10 @@ Grover~\cite{nielsen2010} demonstrated that quantum computers are not merely
 faster classical machines, but represent a genuinely different model of
 computation. The complexity class $\mathsf{BQP}$ (bounded-error quantum
 polynomial time) is believed to be strictly larger than its classical counterpart
-$\mathsf{BPP}$, meaning there exist problems for which quantum algorithms
+$\mathsf{BPP}$, meaning there probably exist problems for which quantum algorithms
 achieve an exponential advantage that no classical algorithm can
-match~\cite{nielsen2010}. The source of this advantage lies in two uniquely
+match~\cite{nielsen2010}. We highlight the former has not been proved yet, 
+despite a long list of attempts by mathematicians. The source of this advantage lies in two uniquely
 quantum phenomena: \emph{superposition}, which allows exploration of exponentially
 many computational paths simultaneously, and \emph{interference}, which enables
 the selective amplification of correct answers and suppression of incorrect ones.
@@ -259,9 +262,8 @@ expectation value in state $\ket{\Psi}$ is given by
   \expval{O} = \bra{\Psi}O\ket{\Psi} = \sum_i \lambda_i\, p_i,
 \end{equation}
 where $\lambda_i$ are the eigenvalues of $O$ and $p_i$ the probability of
-obtaining the corresponding eigenstate. When $O$ is decomposed as a sum of Pauli
-operators, each Pauli term can be measured independently by rotating to the
-appropriate eigenbasis before measurement in the computational basis.
+obtaining the corresponding eigenstate. The concrete measurement protocol
+for a Pauli-decomposed Hamiltonian is constructed in \cref{ch:framework}.
 
 
 \subsection{Density matrices and mixed states}
@@ -300,8 +302,9 @@ depolarizing channel with error rate $p$ acts as
     \bigl(X\rho X + Y\rho Y + Z\rho Z\bigr),
 \end{equation}
 which with probability $p$ replaces the state with a random Pauli error.
-This formalism will be central to the analysis of noise effects in
-\cref{ch:introduction} and subsequent chapters.
+The depolarising channel is the workhorse of the noise studies carried out
+later in the thesis: it is analytically tractable and captures the dominant
+isotropic effect of incoherent gate errors on present-day quantum hardware.
 
 
 \subsection{Quantum simulation}
@@ -372,51 +375,18 @@ optimizes the parameters.
 \section{Variational Quantum Methods}
 \label{sec:variational}
 
-\subsection{The variational principle}
-
-Variational methods offer a framework for extracting useful results from NISQ
-hardware. The central idea rests on the \emph{Rayleigh--Ritz variational
-principle}: for a Hamiltonian $H$ with ground state energy $E_0$,
-\begin{equation}
-  \label{eq:variational}
-  E_0 \leq \bra{\psi(\bm{\theta})}H\ket{\psi(\bm{\theta})}
-       \equiv E(\bm{\theta})
-\end{equation}
-for any normalized trial state $\ket{\psi(\bm{\theta})}$ parameterized by
-classical variables $\bm{\theta}\in\mathbb{R}^p$. Minimizing
-$E(\bm{\theta})$ over the parameter space yields an upper bound on $E_0$, with
-equality when $\ket{\psi(\bm{\theta})}$ includes the true ground state in its
-span.
-
-
-\subsection{The hybrid quantum--classical loop}
-
-In the quantum computing implementation~\cite{peruzzo2014,mcclean2016}, the
-trial state is prepared by a \emph{parameterized quantum circuit} (also called an
-\emph{ansatz}) applied to an initial reference state:
-\begin{equation}
-  \label{eq:ansatz}
-  \ket{\psi(\bm{\theta})}
-    = U(\bm{\theta})\ket{0}^{\otimes n},
-\end{equation}
-where $U(\bm{\theta})$ is a product of parameterized and fixed gates. The energy
-expectation value is then estimated on the quantum processor. For a Hamiltonian
-decomposed as a weighted sum of Pauli strings,
-\begin{equation}
-  \label{eq:pauli_decomp}
-  H = \sum_{i=1}^{M} c_i\, P_i,
-  \qquad P_i \in \{I,X,Y,Z\}^{\otimes n},
-\end{equation}
-each expectation value $\expval{P_i}$ is estimated independently through
-repeated state preparation and measurement in the appropriate Pauli basis. The
-total energy,
-\begin{equation}
-  \label{eq:energy_estimator}
-  E(\bm{\theta}) = \sum_{i=1}^{M} c_i \expval{P_i}_{\bm{\theta}},
-\end{equation}
-is passed to a \emph{classical optimizer} that updates $\bm{\theta}$ to
-minimize~$E$. This loop repeats until convergence, as illustrated in
-\cref{fig:vqe_loop}.
+The NISQ constraints of \cref{sec:nisq} rule out algorithms that demand
+deep, fully coherent circuits. Variational quantum algorithms sidestep
+this restriction by offloading the search itself onto a classical
+optimiser: the quantum processor is asked only to prepare a parameterised
+state $\ket{\psi(\bm{\theta})} = U(\bm{\theta})\ket{0}^{\otimes n}$ and to
+estimate the expectation value
+$E(\bm{\theta}) = \bra{\psi(\bm{\theta})}H\ket{\psi(\bm{\theta})}$, while
+a classical routine drives $\bm{\theta}$ toward the minimum. The loop is
+shown in \cref{fig:vqe_loop}; its formal derivation from the
+Rayleigh--Ritz principle and the explicit measurement protocol on Pauli
+strings are developed in \cref{ch:framework}, where they specialise to
+each of the three algorithms studied in this thesis.
 
 \begin{figure}[htbp]
 \centering
@@ -428,239 +398,148 @@ minimize~$E$. This loop repeats until convergence, as illustrated in
     },
     arrow/.style={-{Stealth[length=6pt]}, thick},
   ]
-  % Nodes
   \node[box, fill=blue!8] (prep) {Prepare\\$\ket{\psi(\bm{\theta})}$};
   \node[box, fill=blue!8, right=of prep] (meas)
     {Measure\\$\expval{P_i}_{\bm{\theta}}$};
   \node[box, fill=orange!10, below=of meas] (eval)
     {Compute\\$E(\bm{\theta})=\sum c_i\expval{P_i}$};
   \node[box, fill=orange!10, below=of prep] (opt)
-    {Classical optimizer\\update $\bm{\theta}$};
+    {Classical optimiser\\update $\bm{\theta}$};
 
-  % Arrows
   \draw[arrow] (prep) -- (meas);
   \draw[arrow] (meas) -- (eval);
   \draw[arrow] (eval) -- (opt);
   \draw[arrow] (opt) -- (prep);
 
-  % Labels
   \node[font=\footnotesize\itshape, above=0.2cm of prep, anchor=south west,
         xshift=-0.3cm] {Quantum processor};
   \node[font=\footnotesize\itshape, below=0.2cm of opt, anchor=north west,
         xshift=-0.3cm] {Classical computer};
 
-  % Dashed separator
   \draw[dashed, gray] ($(prep.south west)+(-0.7,-0.8)$) --
                        ($(meas.south east)+(0.7,-0.8)$);
 \end{tikzpicture}
-\caption{Schematic of the hybrid quantum--classical variational loop. The
-  quantum processor prepares a parameterized state and estimates Pauli
-  expectation values; the classical computer evaluates the energy and updates
-  circuit parameters. The loop iterates until convergence.}
+\caption{The hybrid variational loop. The quantum processor prepares a
+  parameterised state and estimates the Pauli expectation values that
+  compose the energy; the classical optimiser proposes the next
+  $\bm{\theta}$. The cost function is a statistical average over circuit
+  shots, which is what makes the loop robust to the gate errors of NISQ
+  hardware.}
 \label{fig:vqe_loop}
 \end{figure}
 
+The remainder of this section explains \emph{why} this hybrid arrangement
+is the right framework for present-day hardware, and where its limits
+lie. Two properties are responsible for both its success and its
+characteristic failure modes: the noise resilience of an averaged cost
+function, and the tension between the expressibility of a parameterised
+ansatz and its trainability.
 
-\subsection{Ansatz design and practical considerations}
+\subsection{Why the variational principle survives noise}
+\label{sec:vqa_noise}
 
-The choice of ansatz circuit is problem-dependent and critical to performance.
-\emph{Hardware-efficient} ansatze use gates native to the target device,
-minimizing circuit depth at the cost of physical motivation.
-\emph{Physically-motivated} ansatze, such as those inspired by unitary coupled
-cluster theory from quantum chemistry, encode domain knowledge into the circuit
-structure and may converge faster toward the physical ground state.
+The decisive feature of a variational algorithm is that the quantity it
+optimises is a statistical average. A single circuit shot returns a
+bit-string. The cost $E(\bm{\theta})$ is the empirical mean of many such
+shots, weighted by the Pauli coefficients of $H$. Stochastic shot noise
+and biased gate errors therefore enter the optimiser as a deformation of
+the cost landscape, not as a corrupted coherent observable that must
+survive intact to the final measurement.
 
-The hybrid approach offers several advantages for near-term hardware. The quantum
-processor handles the exponentially hard task of preparing and measuring
-many-body quantum states, while the classical optimizer navigates the energy
-landscape using well-established numerical methods. Circuit depths remain
-manageable, and variational methods exhibit a degree of inherent noise
-resilience: small perturbations in the energy surface due to hardware errors are
-partially absorbed by the optimization~\cite{mcclean2016}.
+Two consequences follow. First, depolarising-like noise of strength $p$
+applied uniformly across the circuit damps every nontrivial Pauli
+expectation by a common factor that depends on the circuit structure but
+not on $\bm{\theta}$ once the optimiser sits near a smooth minimum. The
+position of the minimum in parameter space is preserved, while the
+absolute energy at that minimum is biased upward by an amount that can be
+estimated and partially removed by zero-noise extrapolation. Second, the
+optimiser is insensitive to constant offsets in the cost: any
+$\bm{\theta}$-independent shift cancels under finite differences and
+gradient updates. This is the formal sense in which variational
+algorithms are self-correcting against coherent miscalibration, and it is
+the property that justifies their use on devices whose two-qubit gate
+infidelities sit orders of magnitude above the fault-tolerance
+threshold~\cite{mcclean2016,preskill2018}.
 
-Beyond the ground state, variational frameworks extend naturally to excited
-states through orthogonality constraints and penalty methods, and to quantum
-dynamics through variational formulations of time evolution. These extensions
-broaden the scope of problems addressable on near-term quantum hardware.
+The contrast with quantum phase estimation is informative. Phase
+estimation reads the ground-state energy off the relative phase of an
+ancilla, accumulated coherently over a sequence of controlled-$U$
+applications whose length scales with the desired precision. A single
+decohering event in that sequence corrupts the phase and the answer.
+Variational methods replace this brittle coherent encoding by an
+incoherent average, paying a $1/\sqrt{N_{\mathrm{shots}}}$ statistical
+cost in exchange for graceful degradation under the noise budget of NISQ
+hardware.
 
+\subsection{Expressibility and trainability}
+\label{sec:vqa_expressibility}
 
-% ──────────────────────────────────────────────────────────────────
-\section{The Quarkonium Problem}
-\label{sec:quarkonium}
+The flip side of this resilience is that the answer is only as good as
+the ansatz. Two notions sharpen the question of how to choose
+$U(\bm{\theta})$.
 
-\subsection{Heavy quark bound states}
+\emph{Expressibility} measures the extent to which the parameterised
+manifold $\{U(\bm{\theta})\ket{0}^{\otimes n} : \bm{\theta}\in\mathbb{R}^p\}$
+covers the physically relevant subspace of Hilbert space. If the true
+ground state lies outside this manifold, the variational minimum is a
+strict upper bound on $E_0$, and that bound cannot be tightened by more
+optimiser iterations or more shots. Hardware-efficient ansatze chase
+expressibility through depth: every additional layer of entangling gates
+and single-qubit rotations enlarges the reachable manifold.
 
-Quantum chromodynamics (QCD), the gauge theory of the strong interaction,
-governs the binding of quarks and gluons into hadrons. Among the simplest
-hadronic systems are \emph{quarkonia}: bound states of a heavy quark and its
-antiquark ($q\bar{q}$). Charmonium ($c\bar{c}$) systems have served as testing
-grounds for QCD since the simultaneous discovery of the $J/\psi$ meson in 1974
-at BNL~\cite{aubert1974} and SLAC~\cite{augustin1974} -- an event known as the
-\emph{November Revolution} in particle physics.
+\emph{Trainability} measures the conditioning of the cost landscape.
+A maximally expressive ansatz on $n$ qubits suffers the barren-plateau
+phenomenon~\cite{mcclean2018,cerezo2021}: the variance of the energy
+gradient with respect to any single parameter decays exponentially in $n$,
+so the landscape is essentially flat across the bulk of parameter space
+and the optimiser receives no signal. Pushing for more expressibility
+through brute depth therefore destroys trainability, yielding ansatze
+that can in principle reach the ground state but cannot be steered there.
 
-The large mass of the charm quark ($m_c \approx 1.27$~GeV/$c^2$) implies that
-the quark--antiquark pair moves non-relativistically inside the bound state, with
-typical velocities $v/c \sim 0.3$. This justifies a potential model
-approach~\cite{eichten1978} in which the dynamics are governed by the
-non-relativistic Schr\"{o}dinger equation with an effective interquark potential.
+The way out is to give up universal coverage in favour of
+problem-specific symmetries. A particle-number-conserving manifold, for
+instance, restricts the search to the physically meaningful sector and
+shrinks the parameter space by orders of magnitude, restoring nonzero
+gradients. The Unitary Coupled Cluster ansatz used by Gallimore and Liao
+(\cref{sec:gallimore}) and the three-parameter $R_y$ ansatz used by
+Woloshyn (\cref{sec:woloshyn}) are both instances of this strategy: each
+is tailored to its qubit encoding so that the trial manifold contains
+the ground state of the channel Hamiltonian while remaining
+low-dimensional enough to be trainable on current hardware.
 
-
-\subsection{The Cornell potential}
-
-The \emph{Cornell potential}~\cite{eichten1978},
-\begin{equation}
-  \label{eq:cornell}
-  V(r) = -\frac{\kappa}{r} + \sigma\, r,
-\end{equation}
-provides a successful phenomenological description of the $q\bar{q}$ interaction.
-It captures the two essential features of the strong force:
-\begin{itemize}
-  \item \textbf{Short-range Coulomb attraction} ($-\kappa/r$), arising from
-    one-gluon exchange between the color charges, analogous to the
-    electromagnetic Coulomb potential but with QCD coupling;
-  \item \textbf{Long-range linear confinement} ($\sigma\,r$), a consequence of
-    the non-Abelian nature of QCD, modelled by a chromoelectric flux tube
-    (string) with tension $\sigma$ connecting the quark and antiquark.
-\end{itemize}
-Typical parameter values for charmonium are $\kappa \approx 0.52$ and
-$\sigma \approx 0.183$~GeV$^2$~\cite{eichten1978}. \Cref{fig:cornell_potential}
-shows the characteristic shape of this potential.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}
-\begin{axis}[
-    width=0.65\textwidth,
-    height=0.45\textwidth,
-    xlabel={$r$ (fm)},
-    ylabel={$V(r)$ (GeV)},
-    xmin=0.1, xmax=2.0,
-    ymin=-2.5, ymax=2.0,
-    domain=0.1:2.0,
-    samples=200,
-    grid=major,
-    grid style={gray!30},
-    legend pos=south east,
-    legend style={font=\small},
-    every axis label/.style={font=\small},
-    tick label style={font=\footnotesize},
-  ]
-  % Coulomb part
-  \addplot[blue, dashed, thick]
-    {-0.52/x};
-  \addlegendentry{$-\kappa/r$}
-  % Linear part
-  \addplot[red, dashed, thick]
-    {0.183*x/0.197};
-  \addlegendentry{$\sigma r$}
-  % Cornell (total)
-  \addplot[black, very thick]
-    {-0.52/x + 0.183*x/0.197};
-  \addlegendentry{$V(r) = -\kappa/r + \sigma r$}
-\end{axis}
-\end{tikzpicture}
-\caption{The Cornell potential as a function of interquark separation $r$. The
-  dashed curves show the Coulomb ($-\kappa/r$, blue) and linear confinement
-  ($\sigma r$, red) components; the solid curve is their sum. At short distances
-  the potential is dominated by one-gluon exchange; at large distances the
-  linearly rising string tension ensures quark confinement.}
-\label{fig:cornell_potential}
-\end{figure}
-
-
-\subsection{Spin-dependent interactions}
-
-The spin-independent Cornell potential alone does not account for the full
-charmonium spectrum. The mass splitting between states with different spin
-quantum numbers, for instance, between the $\eta_c$ (${}^1S_0$, spin singlet)
-and the $J/\psi$ (${}^3S_1$, spin triplet), requires spin-dependent
-corrections. At leading order, the dominant contribution for $S$-wave states is
-the hyperfine contact interaction~\cite{brambilla2011},
-\begin{equation}
-  \label{eq:spin}
-  V_{\text{hyp}}(r) = \frac{32\pi\,\alpha_s}{9\,m_c^2}\,
-  \delta^{(3)}(\mathbf{r})\;\mathbf{S}_c\cdot\mathbf{S}_{\bar{c}},
-\end{equation}
-where $\alpha_s$ is the strong coupling constant and
-$\mathbf{S}_c\cdot\mathbf{S}_{\bar{c}}$ is the spin--spin dot product. The
-eigenvalues of the latter operator distinguish singlet and triplet
-configurations:
-\begin{equation}
-  \label{eq:spin_eigenvalues}
-  \mathbf{S}_c\cdot\mathbf{S}_{\bar{c}} =
-  \begin{cases}
-    -\tfrac{3}{4} & \text{spin singlet } (S=0),\\[4pt]
-    +\tfrac{1}{4} & \text{spin triplet } (S=1).
-  \end{cases}
-\end{equation}
-
-Quarkonium states are classified in spectroscopic notation ${}^{2S+1}L_J$, where
-$S$ is the total spin, $L$ the orbital angular momentum ($S,P,D,\ldots$ for
-$L=0,1,2,\ldots$), and $J$ the total angular momentum. The low-lying charmonium
-states relevant to this work are:
-\begin{itemize}
-  \item ${}^1S_0$: spin singlet, $S$-wave $\longrightarrow$ $\eta_c$ meson
-    ($M \approx 2984$~MeV),
-  \item ${}^3S_1$: spin triplet, $S$-wave $\longrightarrow$ $J/\psi$ meson
-    ($M \approx 3097$~MeV),
-  \item ${}^1P_1$: spin singlet, $P$-wave $\longrightarrow$ $h_c$ meson
-    ($M \approx 3526$~MeV).
-\end{itemize}
-
-
-\subsection{Quarkonium as a quantum simulation testbed}
-
-The full quarkonium Hamiltonian, including kinetic energy and both
-spin-independent and spin-dependent potentials, reads
-\begin{equation}
-  \label{eq:hamiltonian}
-  H = -\frac{1}{2\mu}\nabla^2 + V(r) + V_{\text{hyp}}(r),
-\end{equation}
-where $\mu = m_c/2$ is the reduced mass. Expanding the radial wavefunction in a
-truncated basis of $N$ quantum harmonic oscillator (QHO) eigenstates yields a
-finite-dimensional matrix eigenvalue problem of size $N\times N$, whose entries
-are determined by the matrix elements of the kinetic and potential operators in
-the QHO basis.
-
-This matrix can then be decomposed into a sum of Pauli operators
-(\cref{eq:pauli_decomp}) and encoded on a quantum register of
-$\lceil\log_2 N\rceil$ qubits, making it directly amenable to variational
-quantum algorithms. With $N=3$--$4$ basis states, the problem requires only 2--3
-qubits, placing it firmly within reach of current NISQ devices while retaining
-the essential physics: multiple spectroscopic channels, spin-dependent
-splittings, and a hierarchy of excited states.
-
-This combination of physical richness and computational tractability makes
-quarkonium an ideal testbed for benchmarking quantum simulation algorithms
-against exact solutions and experimental data.
+Beyond the ground state, the same hybrid framework extends naturally:
+orthogonality penalties give access to excited states, imaginary-time
+equations of motion give a noise-stable route to the ground state from
+arbitrary starting points, and parameterised propagators give dynamical
+observables. The three algorithms developed in the next chapter cover
+precisely these three extensions on the same charmonium Hamiltonian,
+making the strengths and limits of the variational framework visible in
+a single physical system.
 
 
 % ──────────────────────────────────────────────────────────────────
 \section{Thesis Overview}
 \label{sec:overview}
 
-This thesis investigates the application of variational quantum algorithms to the
-charmonium spectroscopy problem described above. We implement and compare several
-algorithmic approaches for determining both ground and excited state energies
-across the ${}^1S_0$, ${}^3S_1$, and ${}^1P_1$ channels, assess their
-performance under realistic noise conditions, and evaluate error mitigation
-strategies. The goal is twofold: to demonstrate the feasibility of quantum
-simulation for hadronic physics on near-term hardware, and to provide a
-systematic comparison of methods that may inform future applications to more
-complex systems.
+This thesis applies three variational quantum algorithms to charmonium
+spectroscopy, comparing them on the same ${}^1S_0$, ${}^3S_1$, and
+${}^1P_1$ channel Hamiltonians and on the same noise model. The goal is
+to test whether the variational framework introduced in this chapter can
+recover spin-dependent mass splittings of the charmonium spectrum on
+hardware whose fidelity is firmly within the NISQ regime, and to
+identify which features of each algorithm carry that performance.
 
-The thesis is organized as follows:
+The remaining chapters are organised as follows:
 \begin{itemize}
-  \item \textbf{Chapter~2} develops the theoretical framework, including the
-    Hamiltonian construction in the harmonic oscillator basis and the mapping to
-    qubit operators.
-  \item \textbf{Chapter~3} presents the quantum algorithms employed, covering
-    both eigenvalue-based and time-evolution-based variational approaches.
-  \item \textbf{Chapter~4} details the numerical results: energy spectra,
-    convergence properties, and cross-method comparisons.
-  \item \textbf{Chapter~5} addresses the effects of hardware noise and
-    discusses error mitigation techniques.
-  \item \textbf{Chapter~6} concludes with a summary of findings and an outlook
-    on future directions.
+  \item \textbf{Chapter~2} introduces the charmonium system, derives the
+    radial Hamiltonian in a truncated harmonic-oscillator basis, and
+    develops in self-contained form the three algorithms studied in this
+    thesis: the Variational Quantum Eigensolver of Gallimore and Liao,
+    the Variational Imaginary-Time Evolution method of Woloshyn, and the
+    Trotter--Taylor Imaginary-Time Evolution scheme of Yi et al.
+  \item \textbf{Chapter~3} presents the numerical results: noiseless
+    benchmarks of energies and transition amplitudes, and the
+    noisy-simulator study that quantifies how each algorithm degrades
+    under depolarising gate noise.
 \end{itemize}
 

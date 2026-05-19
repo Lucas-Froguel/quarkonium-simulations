@@ -60,7 +60,49 @@ The first is the spin-independent Cornell potential
 \end{equation}
 where $-a/r$ is the colour-Coulomb attraction from one-gluon exchange and
 $b\,r$ is the linearly rising flux-tube term that confines the
-quarks~\cite{eichten1978}. The second piece is the leading spin-dependent
+quarks~\cite{eichten1978}. \Cref{fig:cornell_potential} shows the
+characteristic competition between these two contributions, which sets
+the size of the bound state at the radius where their derivatives
+balance.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}
+\begin{axis}[
+    width=0.65\textwidth,
+    height=0.45\textwidth,
+    xlabel={$r$ (fm)},
+    ylabel={$V_0(r)$ (GeV)},
+    xmin=0.1, xmax=2.0,
+    ymin=-2.5, ymax=2.0,
+    domain=0.1:2.0,
+    samples=200,
+    grid=major,
+    grid style={gray!30},
+    legend pos=south east,
+    legend style={font=\small},
+    every axis label/.style={font=\small},
+    tick label style={font=\footnotesize},
+  ]
+  \addplot[blue, dashed, thick] {-0.52/x};
+  \addlegendentry{$-a/r$}
+  \addplot[red, dashed, thick] {0.183*x/0.197};
+  \addlegendentry{$b\,r$}
+  \addplot[black, very thick] {-0.52/x + 0.183*x/0.197};
+  \addlegendentry{$V_0(r) = -a/r + b\,r$}
+\end{axis}
+\end{tikzpicture}
+\caption{Schematic of the Cornell potential of \cref{eq:cornell_potential}.
+  The dashed curves are the colour-Coulomb attraction (blue) and the
+  linear confinement (red); the solid curve is their sum. The minimum of
+  $V_0(r)$ sits where the two derivatives balance, fixing the
+  characteristic size of the charmonium bound state. Parameter values used
+  for the figure are illustrative; the values used in all numerical
+  results in this thesis are those of \cref{tab:cornell_params}.}
+\label{fig:cornell_potential}
+\end{figure}
+
+The second piece is the leading spin-dependent
 correction. From the non-relativistic reduction of the Breit interaction,
 the dominant term at one-gluon-exchange order is the contact
 (hyperfine) interaction~\cite{barnes2005,brambilla2011}
@@ -414,6 +456,79 @@ of ansatz, (iii) a procedure for measuring $E(\bm{\theta})$ from circuit
 shots, and (iv) a classical optimiser for $\bm{\theta}$. The next four
 subsections cover them in turn.
 
+\subsection{Matrix elements specialised to $N=4$}
+\label{ssec:gallimore_matrix_elements}
+
+The closed-form matrix elements of \cref{ssec:matrix_elements} reduce, at
+the $N=4$ truncation used in this thesis, to four explicit
+$4\times 4$ sub-matrices whose sum is the channel Hamiltonian
+$H^{(\ell,S)}$ of \cref{ssec:matrices}. Splitting the Hamiltonian into
+its physical contributions is what reveals which piece dominates each
+matrix element and which pieces change between channels. With
+$H^{(\ell,S)} = T^{(\ell)} + V_{\mathrm{C}}^{(\ell)}
+                + V_{\mathrm{L}}^{(\ell)} + V_{\mathrm{s}}^{(\ell,S)}$,
+where $T^{(\ell)}$ collects the kinetic and centrifugal terms in
+\cref{eq:kinetic_matrix}, $V_{\mathrm{C}}^{(\ell)} = -a\langle
+m|r^{-1}|n\rangle$ uses \cref{eq:coulomb_matrix},
+$V_{\mathrm{L}}^{(\ell)} = b\langle m|r|n\rangle$ uses
+\cref{eq:linear_matrix}, and $V_{\mathrm{s}}^{(\ell,S)}$ uses
+\cref{eq:contact_matrix} with the spin factor of \cref{eq:spin_dot},
+the ${}^1S_0$ channel ($\ell=0$, $S=0$) evaluates to the four matrices
+\begin{align}
+T^{(0)} &= \begin{pmatrix}
+   0.900 &  0.735 &  0      &  0     \\
+   0.735 &  2.100 &  1.342  &  0     \\
+   0     &  1.342 &  3.300  &  1.944 \\
+   0     &  0     &  1.944  &  4.500
+\end{pmatrix},
+&
+V_{\mathrm{C}}^{(0)} &= \begin{pmatrix}
+  -1.743 & -0.711 & -0.477 & -0.368 \\
+  -0.711 & -1.452 & -0.714 & -0.511 \\
+  -0.477 & -0.714 & -1.292 & -0.692 \\
+  -0.368 & -0.511 & -0.692 & -1.186
+\end{pmatrix},
+\label{eq:T_VC_N4}
+\\[6pt]
+V_{\mathrm{L}}^{(0)} &= \begin{pmatrix}
+   1.947 & -0.795 & -0.178 & -0.082 \\
+  -0.795 &  2.921 & -1.088 & -0.235 \\
+  -0.178 & -1.088 &  3.651 & -1.314 \\
+  -0.082 & -0.235 & -1.314 &  4.259
+\end{pmatrix},
+&
+V_{\mathrm{s}}^{({}^1S_0)} &= \begin{pmatrix}
+  -0.114 & -0.121 & -0.119 & -0.112 \\
+  -0.121 & -0.132 & -0.130 & -0.124 \\
+  -0.119 & -0.130 & -0.131 & -0.126 \\
+  -0.112 & -0.124 & -0.126 & -0.124
+\end{pmatrix},
+\label{eq:VL_Vs_N4}
+\end{align}
+all entries in fm$^{-1}$. The contact term carries the spin factor
+$\langle\mathbf{S}_c\cdot\mathbf{S}_{\bar c}\rangle = -3/4$ for the
+singlet channel and $+1/4$ for the triplet, so
+$V_{\mathrm{s}}^{({}^3S_1)} = -\tfrac{1}{3}\,V_{\mathrm{s}}^{({}^1S_0)}$
+and $V_{\mathrm{s}}^{({}^1P_1)} = 0$ (the $\ell=1$ wavefunction vanishes
+at the origin, where the contact term is supported). The kinetic and
+potential pieces of the ${}^1P_1$ matrices follow from \cref{eq:kinetic_matrix,eq:coulomb_matrix,eq:linear_matrix}
+with the substitution $\ell=1$, which shifts the kinetic diagonal up by
+the centrifugal contribution and softens both potential terms in
+proportion to the $r^{2\ell+2}$ suppression of the $P$-wave radial
+density near the origin. Summing the four sub-matrices reproduces the
+channel Hamiltonians of \cref{eq:H_1S0,eq:H_3S1,eq:H_1P1}.
+
+\begin{remark}[What changes between channels]
+The matrix elements of $T$, $V_{\mathrm{C}}$, and $V_{\mathrm{L}}$
+depend only on $\ell$, so they are shared between ${}^1S_0$ and
+${}^3S_1$; the entire singlet--triplet splitting of the $S$-wave
+spectrum is carried by the sign and magnitude of $V_{\mathrm{s}}$. The
+$P$-wave channel sees a strictly positive shift of the kinetic
+diagonal and a uniformly weakened potential, but no contact
+contribution, which is the algebraic origin of the much higher mean
+energy of \cref{eq:H_1P1} compared with \cref{eq:H_1S0,eq:H_3S1}.
+\end{remark}
+
 \subsection{Jordan--Wigner encoding}
 \label{ssec:jw_encoding}
 
@@ -642,6 +757,32 @@ The circuit has $1$ single-qubit $X$ gate, $3$ controlled-$R_y$ gates, and
 $6$ CNOTs in total; this is comparable in depth to the Woloshyn ansatz of
 \cref{fig:woloshyn_ansatz} despite using twice as many qubits, because the
 single-particle constraint sharply restricts the relevant subspace.
+\Cref{fig:ucc_ansatz_primitive} unfolds each Givens block into its native
+$\mathrm{CNOT}{-}\mathrm{CR}_y{-}\mathrm{CNOT}$ realisation of
+\cref{eq:givens_decomp}, giving the exact gate sequence executed on the
+simulator and listing the ten primitive operations in the order they are
+applied.
+
+\begin{figure}[htbp]
+\centering
+\begin{quantikz}[column sep=4pt, row sep=8pt]
+  \lstick{$q_0$} & \gate{X} & \targ{}   & \ctrl{1}                  & \targ{}   & \qw       & \qw                       & \qw       & \qw       & \qw                       & \qw       & \qw \\
+  \lstick{$q_1$} & \qw      & \ctrl{-1} & \gate{R_y(2\theta_3)}     & \ctrl{-1} & \targ{}   & \ctrl{1}                  & \targ{}   & \qw       & \qw                       & \qw       & \qw \\
+  \lstick{$q_2$} & \qw      & \qw       & \qw                       & \qw       & \ctrl{-1} & \gate{R_y(2\theta_2)}     & \ctrl{-1} & \targ{}   & \ctrl{1}                  & \targ{}   & \qw \\
+  \lstick{$q_3$} & \qw      & \qw       & \qw                       & \qw       & \qw       & \qw                       & \qw       & \ctrl{-1} & \gate{R_y(2\theta_1)}     & \ctrl{-1} & \qw
+\end{quantikz}
+\caption{Primitive-gate decomposition of the three-parameter UCC ansatz
+  on four qubits. The leading $X$ on $q_0$ prepares the reference state
+  $\ket{0001}$. Each Givens block of \cref{fig:ucc_ansatz} expands into
+  the triplet $\mathrm{CNOT}_{j{+}1\to j}\;\mathrm{CR}_{y,j\to j{+}1}(2\theta)\;\mathrm{CNOT}_{j{+}1\to j}$
+  of \cref{eq:givens_decomp}, applied first to qubits $(0,1)$ with
+  angle $\theta_3$, then to $(1,2)$ with $\theta_2$, then to $(2,3)$
+  with $\theta_1$. Total cost: one $X$, six CNOTs, and three
+  controlled-$R_y$ rotations, all native to current superconducting
+  hardware. The ordering matches the implementation in
+  \texttt{quarksim/gallimore/ansatz\_n4.py}.}
+\label{fig:ucc_ansatz_primitive}
+\end{figure}
 
 \subsection{Energy measurement on a quantum processor}
 \label{ssec:vqe_measurement}
@@ -705,45 +846,10 @@ available:
 \end{itemize}
 
 Gallimore and Liao use COBYLA, which balances simplicity, noise tolerance,
-and convergence speed for low-parameter ansatze. \Cref{fig:vqe_loop_recap}
-recalls the resulting hybrid loop already introduced in
-\cref{ch:introduction}: the classical optimiser proposes a parameter update,
-the quantum processor evaluates $\widehat{E}(\bm{\theta})$, and the cycle
-repeats until convergence.
-
-\begin{figure}[htbp]
-\centering
-\begin{tikzpicture}[
-    node distance=1.5cm and 2.4cm,
-    box/.style={
-      draw, rounded corners=4pt, minimum width=3.4cm,
-      minimum height=0.9cm, align=center, font=\small
-    },
-    arrow/.style={-{Stealth[length=6pt]}, thick},
-  ]
-  \node[box, fill=blue!8] (prep) {Prepare $\ket{\psi(\bm{\theta})}$};
-  \node[box, fill=blue!8, right=of prep] (meas)
-    {Measure $\{\langle P_k\rangle\}$};
-  \node[box, fill=orange!10, below=of meas] (eval)
-    {$\widehat{E}(\bm{\theta}) = \sum_k c_k\langle P_k\rangle$};
-  \node[box, fill=orange!10, below=of prep] (opt)
-    {Update $\bm{\theta}$ (COBYLA)};
-  \draw[arrow] (prep) -- (meas);
-  \draw[arrow] (meas) -- (eval);
-  \draw[arrow] (eval) -- (opt);
-  \draw[arrow] (opt) -- (prep);
-  \node[font=\footnotesize\itshape, above=0.15cm of prep, anchor=south west,
-        xshift=-0.25cm] {Quantum};
-  \node[font=\footnotesize\itshape, below=0.15cm of opt, anchor=north west,
-        xshift=-0.25cm] {Classical};
-\end{tikzpicture}
-\caption{The VQE hybrid loop specialised to charmonium spectroscopy.
-  The quantum processor prepares the UCC ansatz of \cref{eq:ucc_state},
-  measures the Pauli expectation values in
-  \cref{eq:vqe_energy_estimator}, and returns the energy estimate to a
-  classical optimiser.}
-\label{fig:vqe_loop_recap}
-\end{figure}
+and convergence speed for low-parameter ansatze. The resulting hybrid
+loop is the one shown in \cref{fig:vqe_loop} of the introduction,
+specialised here to the UCC ansatz of \cref{eq:ucc_state} and the energy
+estimator of \cref{eq:vqe_energy_estimator}.
 
 \subsection{Excited states via orthogonalisation}
 \label{ssec:vqe_excited}
@@ -827,15 +933,14 @@ comparison reported in the next chapter.
 \label{sec:woloshyn}
 
 Woloshyn~\cite{woloshyn2023} simulates the same spin-dependent charmonium
-system studied in this thesis---the ${}^1S_0$, ${}^3S_1$, and ${}^1P_1$
-channel matrices of \cref{ssec:matrices}---using the Variational
+system studied in this thesis using the Variational
 Imaginary-Time Evolution (VQITE) algorithm of McArdle et
 al.~\cite{mcardle2019} and Yuan et al.~\cite{yuan2019}. Unlike VQE,
 VQITE locates the ground state by tracking the (non-unitary)
 imaginary-time Schr\"{o}dinger equation through a parameterised ansatz
 manifold, deriving classical equations of motion from a variational
 principle. Woloshyn uses the compact direct mapping for the qubit
-encoding---two qubits for four basis states---together with a
+encoding (two qubits for four basis states) together with a
 three-parameter $R_y$-based ansatz, and also computes the M1 and E1
 radiative transition amplitudes between channels. We reproduce all of
 this material below.
@@ -918,8 +1023,7 @@ Explicitly,
 \end{equation}
 For $N=4$ this requires only $\lceil\log_2 N\rceil = 2$ qubits, and every
 computational-basis state of the register corresponds to a physical HO
-state---there are no spurious states and no symmetry constraint on the
-ansatz.
+state.
 
 The channel Hamiltonian $H^{(\ell,S)}$ is then literally a $4\times 4$
 matrix acting on this register, and its Pauli decomposition follows
@@ -951,7 +1055,7 @@ The direct encoding has two clear advantages over the JW encoding of
 \cref{ssec:jw_encoding}: it uses the minimal number of qubits, and every
 computational-basis state is physical, so the variational ansatz need not
 respect any external constraint. Its main drawback is that the resulting
-Pauli strings carry no obvious physical interpretation---they are simply
+Pauli strings carry no obvious physical interpretation, they are simply
 the coefficients of an abstract $4\times 4$ matrix.
 
 \subsection{Three-parameter variational ansatz}
@@ -1050,7 +1154,7 @@ We work through the derivation in detail since the same building blocks
 will reappear when we discuss the metric tensor and the parameter-shift
 rule below.
 
-\paragraph{Step 1 --- expand the time derivative.}
+\paragraph{Step 1: expand the time derivative.}
 The ansatz state depends on $\tau$ only through the parameters, so by
 the chain rule
 \begin{equation}
@@ -1062,7 +1166,7 @@ the chain rule
                                    {\partial\theta_i}.
 \end{equation}
 
-\paragraph{Step 2 --- write the residual vector.}
+\paragraph{Step 2: write the residual vector.}
 Denote $K \equiv H - E_\tau$ for brevity. The vector inside the norm in
 \cref{eq:mclachlan} is
 \begin{equation}
@@ -1071,7 +1175,7 @@ Denote $K \equiv H - E_\tau$ for brevity. The vector inside the norm in
                 + K\,\ket{\psi}.
 \end{equation}
 
-\paragraph{Step 3 --- compute its squared norm.}
+\paragraph{Step 3: compute its squared norm.}
 Expanding $\braket{R}{R}$,
 \begin{equation*}
   \|R\|^{2} =
@@ -1096,7 +1200,7 @@ $\dot{\theta}_i\dot{\theta}_j$, leaving only the real part. Hence
     + \|K\ket{\psi}\|^{2}.
 \end{equation}
 
-\paragraph{Step 4 --- vary with respect to $\dot{\theta}_k$.}
+\paragraph{Step 4: vary with respect to $\dot{\theta}_k$.}
 The final term in \cref{eq:residual_norm} is independent of
 $\dot{\bm{\theta}}$. Differentiating the remainder with respect to
 $\dot{\theta}_k$ and setting the derivative to zero,
@@ -1121,9 +1225,9 @@ The right-hand side of \cref{eq:C_from_K} is precisely
 \cref{eq:mclachlan_C}, so the vector $C_i$ is recovered at this step
 already.
 
-\paragraph{Step 5 --- project to the Fubini--Study form.}
+\paragraph{Step 5: project to the Fubini--Study form.}
 The bare metric \cref{eq:A_bare} misses one subtlety: the parameterised
-state has a redundant global-phase degree of freedom---$\ket{\psi(\bm{\theta})}$
+state has a redundant global-phase degree of freedom: $\ket{\psi(\bm{\theta})}$
 and $e^{i\phi(\bm{\theta})}\ket{\psi(\bm{\theta})}$ represent the same
 physical state, but their tangent vectors differ by an arbitrary
 multiple of $\ket{\psi}$. To remove this gauge redundancy we project the
@@ -1206,7 +1310,7 @@ The vector $C_i$ in \cref{eq:mclachlan_C_simplified} is a derivative of
 an expectation value with respect to a circuit parameter. For ansatze
 composed of single-qubit rotations of the form
 $R_\mu(\theta) = e^{-i\theta\,\mu/2}$ with $\mu \in \{X,Y,Z\}$, such
-derivatives admit a remarkable closed-form expression---the
+derivatives admit a remarkable closed-form expression, the
 \emph{parameter-shift rule}~\cite{mitarai2018,schuld2019}:
 \begin{equation}
   \label{eq:param_shift}
@@ -1218,7 +1322,7 @@ derivatives admit a remarkable closed-form expression---the
   \Bigr].
 \end{equation}
 The remarkable feature of \cref{eq:param_shift} is that it is
-\emph{exact}---unlike a finite-difference derivative, the formula returns
+\emph{exact}; unlike a finite-difference derivative, the formula returns
 the true partial derivative regardless of the step size. The proof, which
 we sketch here, illustrates the special role played by Pauli rotations.
 
@@ -1226,8 +1330,8 @@ we sketch here, illustrates the special role played by Pauli rotations.
 Consider a circuit where the parameter $\theta_i$ appears only inside a
 rotation $R_\mu(\theta_i) = e^{-i\theta_i \mu/2}$. Since $\mu^{2}=I$, we
 have $R_\mu(\theta_i) = \cos(\theta_i/2)\,I - i\sin(\theta_i/2)\,\mu$, so
-the dependence of $R_\mu$---and hence of
-$\ket{\psi(\bm{\theta})}$---on $\theta_i$ is restricted to the linear
+the dependence of $R_\mu$ -- and hence of
+$\ket{\psi(\bm{\theta})}$ -- on $\theta_i$ is restricted to the linear
 span of $\{1,\cos\theta_i,\sin\theta_i\}$. Therefore the expectation
 value $\langle H\rangle_{\bm{\theta}}$ is a real-valued trigonometric
 polynomial of period $2\pi$ in $\theta_i$, of the form
@@ -1241,7 +1345,7 @@ $a\cos\theta_i + b\sin\theta_i + c$, completes the proof.
 
 The practical implication is that, for the $R_y$-based ansatz of
 \cref{eq:direct_ansatz_op}, all partial derivatives required by
-VQITE---i.e.\ each component of $C$---can be evaluated on the quantum
+VQITE, \textit{i.e.} each component of $C$, can be evaluated on the quantum
 processor at a cost of two additional energy estimations per parameter.
 For the three-parameter ansatz used here, the cost is just six extra
 circuit evaluations per imaginary-time step.
@@ -1394,8 +1498,8 @@ used in Woloshyn's analysis.
 
 \textit{Inverse-ansatz protocol.}
 If the two ansatz unitaries $U_i = U(\bm{\theta}_i^{\star})$ and
-$U_f = U(\bm{\theta}_f^{\star})$ have been determined---e.g., as the output
-of two VQITE runs---then the overlap can be read off from the all-zero
+$U_f = U(\bm{\theta}_f^{\star})$ have been determined, \textit{e.g.}, as the output
+of two VQITE runs, then the overlap can be read off from the all-zero
 outcome of the circuit $U_f^{\dagger} U_i\ket{0}^{\otimes n}$. Indeed,
 \begin{equation}
   \label{eq:inverse_ansatz}
@@ -1529,7 +1633,7 @@ obtained.
 
 
 % ──────────────────────────────────────────────────────────────────
-\section{Yi et al.\ --- Trotter--Taylor Imaginary-Time Evolution}
+\section{Yi et al: Trotter--Taylor Imaginary-Time Evolution}
 \label{sec:yi}
 
 Yi et al.~\cite{yi2025} introduce a probabilistic imaginary-time evolution
